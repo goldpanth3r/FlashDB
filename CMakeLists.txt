@@ -30,7 +30,8 @@ add_executable(flashdb
     src/record/rid.cpp
     src/record/record_file.cpp
     src/metadata/table_catalog.cpp
-
+    src/parser/token.cpp
+    src/parser/lexer.cpp
 )
 
 target_include_directories(flashdb PRIVATE src)
@@ -48,6 +49,8 @@ add_executable(flashdb_tests
     tests/record/layout_test.cpp
     tests/record/record_file_test.cpp
     tests/metadata/table_catalog_test.cpp
+    tests/parser/token_test.cpp
+    tests/parser/lexer_test.cpp
 
     src/file/block_id.cpp
     src/file/page.cpp
@@ -62,6 +65,8 @@ add_executable(flashdb_tests
     src/record/rid.cpp
     src/record/record_file.cpp
     src/metadata/table_catalog.cpp
+    src/parser/token.cpp
+    src/parser/lexer.cpp
 )
 
 target_include_directories(flashdb_tests PRIVATE src)
