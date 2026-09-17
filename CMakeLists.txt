@@ -20,6 +20,9 @@ add_executable(flashdb
     src/file/block_id.cpp
     src/file/page.cpp
     src/file/file_manager.cpp
+    src/log/log_manager.cpp
+    src/buffer/buffer.cpp
+    src/buffer/buffer_manager.cpp
 )
 
 target_include_directories(flashdb PRIVATE src)
@@ -29,10 +32,15 @@ enable_testing()
 add_executable(flashdb_tests
     tests/file/page_test.cpp
     tests/file/file_manager_test.cpp
+    tests/log/log_manager_test.cpp
+    tests/buffer/buffer_manager_test.cpp
 
     src/file/block_id.cpp
     src/file/page.cpp
     src/file/file_manager.cpp
+    src/log/log_manager.cpp
+    src/buffer/buffer.cpp
+    src/buffer/buffer_manager.cpp
 )
 
 target_include_directories(flashdb_tests PRIVATE src)
