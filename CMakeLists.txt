@@ -29,6 +29,8 @@ add_executable(flashdb
     src/record/layout.cpp
     src/record/rid.cpp
     src/record/record_file.cpp
+    src/metadata/table_catalog.cpp
+
 )
 
 target_include_directories(flashdb PRIVATE src)
@@ -45,6 +47,7 @@ add_executable(flashdb_tests
     tests/record/schema_test.cpp
     tests/record/layout_test.cpp
     tests/record/record_file_test.cpp
+    tests/metadata/table_catalog_test.cpp
 
     src/file/block_id.cpp
     src/file/page.cpp
@@ -58,6 +61,7 @@ add_executable(flashdb_tests
     src/record/layout.cpp
     src/record/rid.cpp
     src/record/record_file.cpp
+    src/metadata/table_catalog.cpp
 )
 
 target_include_directories(flashdb_tests PRIVATE src)
