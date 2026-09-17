@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/flashdb_tests.dir/tests/file/page_test.cpp.o CMakeFiles/flashdb_tests.dir/tests/file/file_manager_test.cpp.o CMakeFiles/flashdb_tests.dir/src/file/block_id.cpp.o CMakeFiles/flashdb_tests.dir/src/file/page.cpp.o CMakeFiles/flashdb_tests.dir/src/file/file_manager.cpp.o -o flashdb_tests  lib/libgtest_main.a lib/libgtest.a 
