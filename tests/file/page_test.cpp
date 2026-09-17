@@ -25,3 +25,21 @@ TEST(PageTest, PageSizeIs4096) {
 
     EXPECT_EQ(page.data().size(), Page::PAGE_SIZE);
 }
+
+TEST(PageTest, RejectsIntegerOutsidePage) {
+    Page page;
+
+    EXPECT_THROW(
+        page.set_int(Page::PAGE_SIZE - 2, 42),
+        std::out_of_range
+    );
+}
+
+TEST(PageTest, RejectsStringOutsidePage) {
+    Page page;
+
+    EXPECT_THROW(
+        page.set_string(Page::PAGE_SIZE - 2, "FlashDB"),
+        std::out_of_range
+    );
+}

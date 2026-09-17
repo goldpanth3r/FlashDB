@@ -1,38 +1,155 @@
 #include <gtest/gtest.h>
 
-#include "file/page.h"
 #include "record/record_page.h"
-#include "record/schema.h"
 
-using namespace flashdb;
+namespace flashdb {
 
 TEST(RecordPageTest, InsertsAndReadsRecord) {
-    Page page;
+    Schema schema;
 
+    schema.add_int_field("id");
+    schema.add_string_field("name", 20);
+
+    Layout layout(schema);
+
+    Page page;
+    RecordPage records(page, layout);
+
+    const std::size_t slot =
+        records.insert({
+            {"id", "42"},
+            {"name", "Alice"}
+        });
+
+    EXPECT_TRUE(records.is_used(slot));
+    EXPECT_EQ(records.get(slot, "id"), "42");
+    EXPECT_EQ(records.get(slot, "name"), "Alice");
+}
+
+TEST(RecordPageTest, UpdatesRecord) {
+    Schema schema;
+
+    schema.add_int_field("id");
+    schema.add_string_field("name", 20);
+
+    Layout layout(schema);
+
+    Page page;
+    RecordPage records(page, layout);
+
+    const std::size_t slot =
+        records.insert({
+            {"id", "42"},
+            {"name", "Alice"}
+        });
+
+    records.set(slot, "name", "Bob");
+
+    EXPECT_EQ(records.get(slot, "name"), "Bob");
+}
+
+TEST(RecordPageTest, DeletesRecord) {
+    Schema schema;
+
+    schema.add_int_field("id");
+    schema.add_string_field("name", 20);
+
+    Layout layout(schema);
+
+    Page page;
+    RecordPage records(page, layout);
+
+    const std::size_t slot =
+        records.insert({
+            {"id", "42"},
+            {"name", "Alice"}
+        });
+
+    records.remove(slot);
+
+    EXPECT_FALSE(records.is_used(slot));
+}
+
+TEST(RecordPageTest, ReusesDeletedSlot) {
+    Schema schema;
+
+    schema.add_int_field("id");
+
+    Layout layout(schema);
+
+    Page page;
+    RecordPage records(page, layout);
+
+    const std::size_t first =
+        records.insert({
+            {"id", "1"}
+        });
+
+    records.remove(first);
+
+    const std::size_t second =
+        records.insert({
+            {"id", "2"}
+        });
+
+    EXPECT_EQ(first, second);
+    EXPECT_EQ(records.get(second, "id"), "2");
+}
+
+TEST(RecordPageTest, RejectsOversizedString) {
+    Schema schema;
+
+    schema.add_string_field("name", 5);
+
+    Layout layout(schema);
+
+    Page page;
+    RecordPage records(page, layout);
+
+    EXPECT_THROW(
+        records.insert({
+            {"name", "abcdef"}
+        }),
+        std::length_error
+    );
+}
+
+TEST(RecordPageTest, RejectsMissingField) {
+    Schema schema;
+
+    schema.add_int_field("id");
+    schema.add_string_field("name", 20);
+
+    Layout layout(schema);
+
+    Page page;
+    RecordPage records(page, layout);
+
+    EXPECT_THROW(
+        records.insert({
+            {"id", "42"}
+        }),
+        std::invalid_argument
+    );
+}
+
+TEST(RecordPageTest, DetectsFreeSlot) {
     Schema schema;
     schema.add_int_field("id");
     schema.add_string_field("name", 20);
 
-    RecordPage records(page, schema);
-
-    const int slot =
-        records.insert("1Alice");
-
-    EXPECT_EQ(slot, 0);
-    EXPECT_EQ(records.get(0).substr(0, 6), "1Alice");
-}
-
-TEST(RecordPageTest, MultipleRecordsGetDifferentSlots) {
+    Layout layout(schema);
     Page page;
+    RecordPage record_page(page, layout);
 
-    Schema schema;
-    schema.add_string_field("name", 20);
+    EXPECT_TRUE(record_page.has_free_slot());
 
-    RecordPage records(page, schema);
+    record_page.insert({
+        {"id", "1"},
+        {"name", "Alice"}
+    });
 
-    EXPECT_EQ(records.insert("Alice"), 0);
-    EXPECT_EQ(records.insert("Bob"), 1);
-
-    EXPECT_EQ(records.get(0).substr(0, 5), "Alice");
-    EXPECT_EQ(records.get(1).substr(0, 3), "Bob");
+    EXPECT_TRUE(record_page.has_free_slot());
 }
+
+} // namespace flashdb

@@ -26,6 +26,9 @@ add_executable(flashdb
     src/tx/transaction.cpp
     src/record/schema.cpp
     src/record/record_page.cpp
+    src/record/layout.cpp
+    src/record/rid.cpp
+    src/record/record_file.cpp
 )
 
 target_include_directories(flashdb PRIVATE src)
@@ -39,6 +42,9 @@ add_executable(flashdb_tests
     tests/buffer/buffer_manager_test.cpp
     tests/tx/transaction_test.cpp
     tests/record/record_page_test.cpp
+    tests/record/schema_test.cpp
+    tests/record/layout_test.cpp
+    tests/record/record_file_test.cpp
 
     src/file/block_id.cpp
     src/file/page.cpp
@@ -49,6 +55,9 @@ add_executable(flashdb_tests
     src/tx/transaction.cpp
     src/record/schema.cpp
     src/record/record_page.cpp
+    src/record/layout.cpp
+    src/record/rid.cpp
+    src/record/record_file.cpp
 )
 
 target_include_directories(flashdb_tests PRIVATE src)

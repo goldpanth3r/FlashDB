@@ -8,70 +8,65 @@
 namespace flashdb {
 
 /**
- * Schema describes the fields stored in a database record.
+ * FieldType describes the type of one table column.
+ */
+enum class FieldType {
+    INT,
+    STRING
+};
+
+/**
+ * Field describes one column in a table.
+ */
+struct Field {
+    std::string name;
+    FieldType type;
+    std::size_t length;
+};
+
+/**
+ * Schema describes the columns of a table.
  *
  * Example:
  *
- * id    INT
- * name  TEXT
+ * id   INT
+ * name STRING(50)
  */
 class Schema {
 public:
     /**
      * Add an integer field.
      *
-     * @param name Field name.
+     * @param name Column name.
      */
     void add_int_field(const std::string& name);
 
     /**
      * Add a string field.
      *
-     * @param name Field name.
+     * @param name Column name.
      * @param length Maximum string length.
      */
     void add_string_field(
         const std::string& name,
-        std::size_t length);
+        std::size_t length
+    );
+
+    /**
+     * Return all fields in the schema.
+     *
+     * @return List of table fields.
+     */
+    const std::vector<Field>& fields() const;
 
     /**
      * Return the number of fields.
+     *
+     * @return Number of columns.
      */
     std::size_t field_count() const;
 
-    /**
-     * Return a field name.
-     *
-     * @param index Field position.
-     */
-    const std::string& field_name(std::size_t index) const;
-
-    /**
-     * Return whether a field is an integer.
-     *
-     * @param index Field position.
-     */
-    bool is_int(std::size_t index) const;
-
-    /**
-     * Return the maximum string length.
-     *
-     * @param index Field position.
-     */
-    std::size_t string_length(std::size_t index) const;
-
 private:
-    enum class FieldType {
-        INT,
-        STRING
-    };
-
-    struct Field {
-        std::string name;
-        FieldType type;
-        std::size_t length;
-    };
-
     std::vector<Field> fields_;
 };
 
