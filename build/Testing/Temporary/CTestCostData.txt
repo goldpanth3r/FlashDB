@@ -1,0 +1,5 @@
+PageTest.StoresInteger 1 0.00301483
+PageTest.StoresString 1 0.00355688
+PageTest.PageSizeIs4096 1 0.00367781
+FileManagerTest.WriteAndReadPage 1 0.00422579
+---

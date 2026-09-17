@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/flashdb.dir/src/main.cpp.o CMakeFiles/flashdb.dir/src/file/block_id.cpp.o CMakeFiles/flashdb.dir/src/file/page.cpp.o CMakeFiles/flashdb.dir/src/file/file_manager.cpp.o -o flashdb 

@@ -1,0 +1,111 @@
+Start testing: Sep 17 10:12 UTC
+----------------------------------------------------------
+1/4 Testing: PageTest.StoresInteger
+1/4 Test: PageTest.StoresInteger
+Command: "/workspaces/FlashDB/build/flashdb_tests" "--gtest_filter=PageTest.StoresInteger" "--gtest_also_run_disabled_tests"
+Directory: /workspaces/FlashDB/build
+"PageTest.StoresInteger" start time: Sep 17 10:12 UTC
+Output:
+----------------------------------------------------------
+Running main() from /workspaces/FlashDB/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = PageTest.StoresInteger
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from PageTest
+[ RUN      ] PageTest.StoresInteger
+[       OK ] PageTest.StoresInteger (0 ms)
+[----------] 1 test from PageTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"PageTest.StoresInteger" end time: Sep 17 10:12 UTC
+"PageTest.StoresInteger" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/4 Testing: PageTest.StoresString
+2/4 Test: PageTest.StoresString
+Command: "/workspaces/FlashDB/build/flashdb_tests" "--gtest_filter=PageTest.StoresString" "--gtest_also_run_disabled_tests"
+Directory: /workspaces/FlashDB/build
+"PageTest.StoresString" start time: Sep 17 10:12 UTC
+Output:
+----------------------------------------------------------
+Running main() from /workspaces/FlashDB/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = PageTest.StoresString
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from PageTest
+[ RUN      ] PageTest.StoresString
+[       OK ] PageTest.StoresString (0 ms)
+[----------] 1 test from PageTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"PageTest.StoresString" end time: Sep 17 10:12 UTC
+"PageTest.StoresString" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/4 Testing: PageTest.PageSizeIs4096
+3/4 Test: PageTest.PageSizeIs4096
+Command: "/workspaces/FlashDB/build/flashdb_tests" "--gtest_filter=PageTest.PageSizeIs4096" "--gtest_also_run_disabled_tests"
+Directory: /workspaces/FlashDB/build
+"PageTest.PageSizeIs4096" start time: Sep 17 10:12 UTC
+Output:
+----------------------------------------------------------
+Running main() from /workspaces/FlashDB/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = PageTest.PageSizeIs4096
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from PageTest
+[ RUN      ] PageTest.PageSizeIs4096
+[       OK ] PageTest.PageSizeIs4096 (0 ms)
+[----------] 1 test from PageTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"PageTest.PageSizeIs4096" end time: Sep 17 10:12 UTC
+"PageTest.PageSizeIs4096" time elapsed: 00:00:00
+----------------------------------------------------------
+
+4/4 Testing: FileManagerTest.WriteAndReadPage
+4/4 Test: FileManagerTest.WriteAndReadPage
+Command: "/workspaces/FlashDB/build/flashdb_tests" "--gtest_filter=FileManagerTest.WriteAndReadPage" "--gtest_also_run_disabled_tests"
+Directory: /workspaces/FlashDB/build
+"FileManagerTest.WriteAndReadPage" start time: Sep 17 10:12 UTC
+Output:
+----------------------------------------------------------
+Running main() from /workspaces/FlashDB/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = FileManagerTest.WriteAndReadPage
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from FileManagerTest
+[ RUN      ] FileManagerTest.WriteAndReadPage
+[       OK ] FileManagerTest.WriteAndReadPage (0 ms)
+[----------] 1 test from FileManagerTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"FileManagerTest.WriteAndReadPage" end time: Sep 17 10:12 UTC
+"FileManagerTest.WriteAndReadPage" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Sep 17 10:12 UTC

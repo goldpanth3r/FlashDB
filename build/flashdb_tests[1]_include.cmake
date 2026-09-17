@@ -1,0 +1,5 @@
+if(EXISTS "/workspaces/FlashDB/build/flashdb_tests[1]_tests.cmake")
+  include("/workspaces/FlashDB/build/flashdb_tests[1]_tests.cmake")
+else()
+  add_test(flashdb_tests_NOT_BUILT flashdb_tests_NOT_BUILT)
+endif()
