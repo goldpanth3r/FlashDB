@@ -1,4 +1,6 @@
 #include <filesystem>
+#include <memory>
+#include <string>
 
 #include <gtest/gtest.h>
 
@@ -16,6 +18,14 @@ namespace flashdb {
 
 class DeleteExecutorTest : public ::testing::Test {
 protected:
+    std::filesystem::path test_directory;
+
+    std::unique_ptr<FileManager> file_manager;
+    std::unique_ptr<BufferManager> buffer_manager;
+    std::unique_ptr<Schema> schema;
+    std::unique_ptr<Layout> layout;
+    std::unique_ptr<RecordFile> record_file;
+
     void SetUp() override {
         test_directory =
             std::filesystem::temp_directory_path()
@@ -24,252 +34,219 @@ protected:
         std::filesystem::remove_all(test_directory);
         std::filesystem::create_directories(test_directory);
 
-        FileManager file_manager(
-            test_directory.string()
-        );
+        file_manager =
+            std::make_unique<FileManager>(test_directory);
 
-        BufferManager buffer_manager(
-            file_manager,
-            10
-        );
-
-        file_manager_ =
-            std::make_unique<FileManager>(
-                test_directory.string()
-            );
-
-        buffer_manager_ =
+        buffer_manager =
             std::make_unique<BufferManager>(
-                *file_manager_,
+                *file_manager,
                 10
             );
 
-        schema_.add_int_field("id");
-        schema_.add_string_field("name", 50);
+        schema = std::make_unique<Schema>();
 
-        layout_ = std::make_unique<Layout>(schema_);
+        schema->add_int_field("id");
+        schema->add_string_field("name", 50);
 
-        record_file_ =
+        layout = std::make_unique<Layout>(*schema);
+
+        record_file =
             std::make_unique<RecordFile>(
-                *file_manager_,
-                *buffer_manager_,
+                *file_manager,
+                *buffer_manager,
                 "student",
-                *layout_
+                *layout
             );
     }
 
     void TearDown() override {
-        record_file_.reset();
-        layout_.reset();
-        buffer_manager_.reset();
-        file_manager_.reset();
+        record_file.reset();
+        layout.reset();
+        schema.reset();
+        buffer_manager.reset();
+        file_manager.reset();
 
         std::filesystem::remove_all(test_directory);
     }
 
-    std::unique_ptr<FileManager> file_manager_;
-    std::unique_ptr<BufferManager> buffer_manager_;
-    std::unique_ptr<Layout> layout_;
-    std::unique_ptr<RecordFile> record_file_;
+    void insert_student(
+        const std::string& id,
+        const std::string& name) {
 
-    Schema schema_;
-    std::filesystem::path test_directory;
+        std::unordered_map<std::string, std::string> values;
+
+        values["id"] = id;
+        values["name"] = name;
+
+        record_file->insert(values);
+    }
+
+    std::unique_ptr<Plan> create_plan(
+        const std::string& sql) {
+
+        Lexer lexer(sql);
+
+        const auto tokens = lexer.tokenize();
+        Parser parser(tokens);
+
+        const auto statement = parser.parse();
+
+        Planner planner;
+
+        return planner.create_plan(statement);
+    }
 };
 
+// Delete only the record selected by the WHERE predicate.
 TEST_F(DeleteExecutorTest, DeletesMatchingRecord) {
-    record_file_->insert({
-        {"id", "1"},
-        {"name", "Alice"}
-    });
+    insert_student("1", "Alice");
+    insert_student("2", "Bob");
 
-    record_file_->insert({
-        {"id", "2"},
-        {"name", "Bob"}
-    });
-
-    Lexer lexer(
-        "DELETE FROM student WHERE id = 1;"
-    );
-
-    const auto tokens = lexer.tokenize();
-    Parser parser(tokens);
-
-    const auto statement = parser.parse();
-
-    Planner planner;
-
-    const auto plan = planner.create_plan(statement);
+    auto plan =
+        create_plan(
+            "DELETE FROM student WHERE id = 1;"
+        );
 
     DeleteExecutor executor(
         *plan,
-        *record_file_
+        *record_file
     );
 
     EXPECT_EQ(executor.execute(), 1u);
+    EXPECT_EQ(record_file->scan().size(), 1u);
 
-    const auto records = record_file_->scan();
+    const auto remaining = record_file->scan();
 
-    ASSERT_EQ(records.size(), 1u);
     EXPECT_EQ(
-        record_file_->get(records[0], "id"),
+        record_file->get(remaining[0], "id"),
         "2"
+    );
+
+    EXPECT_EQ(
+        record_file->get(remaining[0], "name"),
+        "Bob"
     );
 }
 
+// Delete every record when DELETE has no WHERE predicate.
 TEST_F(DeleteExecutorTest, DeletesAllRecordsWithoutWhere) {
-    record_file_->insert({
-        {"id", "1"},
-        {"name", "Alice"}
-    });
+    insert_student("1", "Alice");
+    insert_student("2", "Bob");
+    insert_student("3", "Charlie");
 
-    record_file_->insert({
-        {"id", "2"},
-        {"name", "Bob"}
-    });
-
-    record_file_->insert({
-        {"id", "3"},
-        {"name", "Charlie"}
-    });
-
-    Lexer lexer(
-        "DELETE FROM student;"
-    );
-
-    const auto tokens = lexer.tokenize();
-    Parser parser(tokens);
-
-    const auto statement = parser.parse();
-
-    Planner planner;
-
-    const auto plan = planner.create_plan(statement);
+    auto plan =
+        create_plan(
+            "DELETE FROM student;"
+        );
 
     DeleteExecutor executor(
         *plan,
-        *record_file_
+        *record_file
     );
 
     EXPECT_EQ(executor.execute(), 3u);
-    EXPECT_TRUE(record_file_->scan().empty());
+    EXPECT_TRUE(record_file->scan().empty());
 }
 
+// Delete every record matching the same predicate.
 TEST_F(DeleteExecutorTest, DeletesMultipleMatchingRecords) {
-    record_file_->insert({
-        {"id", "1"},
-        {"name", "Alice"}
-    });
+    insert_student("1", "Alice");
+    insert_student("1", "Alex");
+    insert_student("2", "Bob");
 
-    record_file_->insert({
-        {"id", "1"},
-        {"name", "Bob"}
-    });
-
-    record_file_->insert({
-        {"id", "2"},
-        {"name", "Charlie"}
-    });
-
-    Lexer lexer(
-        "DELETE FROM student WHERE id = 1;"
-    );
-
-    const auto tokens = lexer.tokenize();
-    Parser parser(tokens);
-
-    const auto statement = parser.parse();
-
-    Planner planner;
-
-    const auto plan = planner.create_plan(statement);
+    auto plan =
+        create_plan(
+            "DELETE FROM student WHERE id = 1;"
+        );
 
     DeleteExecutor executor(
         *plan,
-        *record_file_
+        *record_file
     );
 
     EXPECT_EQ(executor.execute(), 2u);
+    EXPECT_EQ(record_file->scan().size(), 1u);
 
-    const auto records = record_file_->scan();
+    const auto remaining = record_file->scan();
 
-    ASSERT_EQ(records.size(), 1u);
     EXPECT_EQ(
-        record_file_->get(records[0], "id"),
+        record_file->get(remaining[0], "id"),
         "2"
     );
 }
 
+// Return zero when the DELETE predicate matches nothing.
 TEST_F(DeleteExecutorTest, DeletesNoMatchingRecords) {
-    record_file_->insert({
-        {"id", "1"},
-        {"name", "Alice"}
-    });
+    insert_student("1", "Alice");
+    insert_student("2", "Bob");
 
-    record_file_->insert({
-        {"id", "2"},
-        {"name", "Bob"}
-    });
-
-    Lexer lexer(
-        "DELETE FROM student WHERE id = 99;"
-    );
-
-    const auto tokens = lexer.tokenize();
-    Parser parser(tokens);
-
-    const auto statement = parser.parse();
-
-    Planner planner;
-
-    const auto plan = planner.create_plan(statement);
+    auto plan =
+        create_plan(
+            "DELETE FROM student WHERE id = 99;"
+        );
 
     DeleteExecutor executor(
         *plan,
-        *record_file_
+        *record_file
     );
 
     EXPECT_EQ(executor.execute(), 0u);
-
-    EXPECT_EQ(record_file_->scan().size(), 2u);
+    EXPECT_EQ(record_file->scan().size(), 2u);
 }
 
+// Keep records that do not satisfy the DELETE predicate.
 TEST_F(DeleteExecutorTest, PreservesNonMatchingRecords) {
-    record_file_->insert({
-        {"id", "1"},
-        {"name", "Alice"}
-    });
+    insert_student("1", "Alice");
+    insert_student("2", "Bob");
+    insert_student("3", "Charlie");
 
-    record_file_->insert({
-        {"id", "2"},
-        {"name", "Bob"}
-    });
-
-    Lexer lexer(
-        "DELETE FROM student WHERE id = 1;"
-    );
-
-    const auto tokens = lexer.tokenize();
-    Parser parser(tokens);
-
-    const auto statement = parser.parse();
-
-    Planner planner;
-
-    const auto plan = planner.create_plan(statement);
+    auto plan =
+        create_plan(
+            "DELETE FROM student WHERE id = 2;"
+        );
 
     DeleteExecutor executor(
         *plan,
-        *record_file_
+        *record_file
     );
 
     EXPECT_EQ(executor.execute(), 1u);
 
-    const auto records = record_file_->scan();
+    const auto remaining = record_file->scan();
 
-    ASSERT_EQ(records.size(), 1u);
+    ASSERT_EQ(remaining.size(), 2u);
+
     EXPECT_EQ(
-        record_file_->get(records[0], "name"),
-        "Bob"
+        record_file->get(remaining[0], "id"),
+        "1"
+    );
+
+    EXPECT_EQ(
+        record_file->get(remaining[1], "id"),
+        "3"
+    );
+}
+
+// Reject plans that belong to another execution operation.
+TEST_F(DeleteExecutorTest, RejectsWrongPlanType) {
+    auto plan =
+        create_plan(
+            "DELETE FROM student;"
+        );
+
+    Plan wrong_plan(
+        "Update",
+        "student"
+    );
+
+    DeleteExecutor executor(
+        wrong_plan,
+        *record_file
+    );
+
+    EXPECT_THROW(
+        executor.execute(),
+        std::invalid_argument
     );
 }
 

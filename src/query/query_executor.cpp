@@ -9,12 +9,12 @@
 
 namespace flashdb {
 
-// Build the executor pipeline for the planned query.
+// Prepare SELECT execution using the shared database storage.
 QueryExecutor::QueryExecutor(
     const Plan& plan,
-    RecordFile& record_file)
+    Database& database)
     : plan_(plan),
-      record_file_(record_file) {
+      database_(database) {
 }
 
 // Execute a SELECT query from the plan down to the storage layer.
@@ -35,8 +35,13 @@ QueryExecutor::execute() {
         );
     }
 
+    std::unique_ptr<RecordFile> record_file =
+        database_.open_table(
+            plan_.get_table_name()
+        );
+
     // Use a table scan as the base source of records.
-    TableScanExecutor table_scan(record_file_);
+    TableScanExecutor table_scan(*record_file);
 
     std::unique_ptr<FilterExecutor> filter;
 
@@ -55,7 +60,7 @@ QueryExecutor::execute() {
 
         filter = std::make_unique<FilterExecutor>(
             table_scan,
-            record_file_,
+            *record_file,
             *condition
         );
 
@@ -72,7 +77,7 @@ QueryExecutor::execute() {
     // Apply the SELECT list to the records produced by the input executor.
     ProjectExecutor project(
         *input,
-        record_file_,
+        *record_file,
         plan_.get_columns()
     );
 

@@ -2,60 +2,75 @@
 #define FLASHDB_TX_TRANSACTION_H
 
 #include <cstddef>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "buffer/buffer_manager.h"
 #include "file/file_manager.h"
 #include "log/log_manager.h"
+#include "record/rid.h"
 
 namespace flashdb {
 
-/**
- * Transaction represents one database transaction.
- *
- * A transaction groups database operations into one unit.
- * Later this class will also handle locking and recovery.
- */
+class Database;
+
+struct TransactionUndo {
+    UndoLogRecord record;
+    std::size_t lsn;
+};
+
 class Transaction {
 public:
-    /**
-     * Create a transaction.
-     *
-     * @param file_manager Used for database file operations.
-     * @param log_manager Used for transaction logging.
-     * @param buffer_manager Used for cached pages.
-     */
     Transaction(
         FileManager& file_manager,
         LogManager& log_manager,
-        BufferManager& buffer_manager);
+        BufferManager& buffer_manager
+    );
 
-    /**
-     * Commit the transaction.
-     *
-     * @return Transaction ID.
-     */
+    Transaction(
+        Database& database,
+        LogManager& log_manager
+    );
+
     std::size_t commit();
 
-    /**
-     * Roll back the transaction.
-     *
-     * @return Transaction ID.
-     */
     std::size_t rollback();
 
-    /**
-     * Return this transaction's ID.
-     */
+    RecordId insert(
+        const std::string& table_name,
+        const std::unordered_map<std::string, std::string>& values
+    );
+
+    void update(
+        const std::string& table_name,
+        const RecordId& rid,
+        const std::string& field_name,
+        const std::string& value
+    );
+
+    void remove(
+        const std::string& table_name,
+        const RecordId& rid
+    );
+
     std::size_t id() const;
 
 private:
-    FileManager& file_manager_;
+    FileManager* file_manager_;
     LogManager& log_manager_;
-    BufferManager& buffer_manager_;
+    BufferManager* buffer_manager_;
+    Database* database_;
 
     std::size_t transaction_id_;
 
+    std::vector<TransactionUndo> undo_records_;
+
     static std::size_t next_transaction_id_;
+
+    void undo_record(
+        const TransactionUndo& undo
+    );
 };
 
 } // namespace flashdb

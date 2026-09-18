@@ -403,4 +403,30 @@ bool RecordPage::has_free_slot() const {
     return false;
 }
 
+// Place a new record into a specific physical slot.
+void RecordPage::insert_at(
+    std::size_t slot,
+    const std::unordered_map<std::string, std::string>& values
+) {
+    validate_slot(slot);
+
+    if (is_used(slot)) {
+        throw std::runtime_error("Record slot is already occupied");
+    }
+
+    validate_record(values);
+
+    const std::size_t offset = slot_offset(slot);
+
+    page_.data()[offset] = std::byte{1};
+
+    for (const auto& field : layout_.schema().fields()) {
+        set(
+            slot,
+            field.name,
+            values.at(field.name)
+        );
+    }
+}
+
 } // namespace flashdb

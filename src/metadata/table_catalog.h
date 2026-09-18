@@ -8,41 +8,32 @@
 
 namespace flashdb {
 
-/**
- * TableCatalog stores the schema of each table.
- *
- * It provides a simple in-memory catalog for now.
- */
 class TableCatalog {
 public:
-    /**
-     * Add a table to the catalog.
-     */
+    explicit TableCatalog(
+        const std::string& catalog_filename = "flashdb.catalog"
+    );
+
     void create_table(
         const std::string& table_name,
         const Schema& schema
     );
 
-    /**
-     * Check whether a table exists.
-     */
     bool has_table(
         const std::string& table_name
     ) const;
 
-    /**
-     * Return the schema of a table.
-     */
     const Schema& get_schema(
         const std::string& table_name
     ) const;
 
-    /**
-     * Return the number of tables in the catalog.
-     */
     std::size_t table_count() const;
 
+    void load();
+    void save() const;
+
 private:
+    std::string catalog_filename_;
     std::unordered_map<std::string, Schema> tables_;
 };
 

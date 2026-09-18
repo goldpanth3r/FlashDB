@@ -1,5 +1,6 @@
 #include "query/update_executor.h"
 
+#include <memory>
 #include <stdexcept>
 
 #include "query/filter_executor.h"
@@ -7,15 +8,26 @@
 
 namespace flashdb {
 
-// Prepare UPDATE execution against the target table storage.
+// Prepare UPDATE execution using the shared database storage.
 UpdateExecutor::UpdateExecutor(
     const Plan& plan,
-    RecordFile& record_file)
+    Database& database)
     : plan_(plan),
-      record_file_(record_file) {
+      database_(database),
+      transaction_(nullptr) {
 }
 
-// Apply the planned value to every record selected by the UPDATE predicate.
+// Prepare UPDATE execution so every write can be rolled back.
+UpdateExecutor::UpdateExecutor(
+    const Plan& plan,
+    Database& database,
+    Transaction& transaction)
+    : plan_(plan),
+      database_(database),
+      transaction_(&transaction) {
+}
+
+// Validate the UPDATE and apply it through the selected transaction path.
 std::size_t UpdateExecutor::execute() {
 
     if (plan_.get_name() != "Update") {
@@ -23,6 +35,11 @@ std::size_t UpdateExecutor::execute() {
             "UpdateExecutor: expected Update plan"
         );
     }
+
+    std::unique_ptr<RecordFile> record_file =
+        database_.open_table(
+            plan_.get_table_name()
+        );
 
     const std::vector<Expression>& columns =
         plan_.get_columns();
@@ -47,7 +64,7 @@ std::size_t UpdateExecutor::execute() {
     }
 
     const Schema& schema =
-        record_file_.layout().schema();
+        record_file->layout().schema();
 
     const auto& fields = schema.fields();
 
@@ -83,7 +100,7 @@ std::size_t UpdateExecutor::execute() {
         }
     }
 
-    TableScanExecutor table_scan(record_file_);
+    TableScanExecutor table_scan(*record_file);
 
     table_scan.open();
 
@@ -95,11 +112,21 @@ std::size_t UpdateExecutor::execute() {
         while (table_scan.has_next()) {
             const RecordId rid = table_scan.next();
 
-            record_file_.set(
-                rid,
-                column.value(),
-                value.value()
-            );
+            if (transaction_ != nullptr) {
+                // Record the old value before changing the row.
+                transaction_->update(
+                    plan_.get_table_name(),
+                    rid,
+                    column.value(),
+                    value.value()
+                );
+            } else {
+                record_file->set(
+                    rid,
+                    column.value(),
+                    value.value()
+                );
+            }
 
             ++updated_count;
         }
@@ -112,7 +139,7 @@ std::size_t UpdateExecutor::execute() {
     // Restrict writes to records matching the WHERE predicate.
     FilterExecutor filter(
         table_scan,
-        record_file_,
+        *record_file,
         *plan_.get_condition()
     );
 
@@ -121,11 +148,21 @@ std::size_t UpdateExecutor::execute() {
     while (filter.has_next()) {
         const RecordId rid = filter.next();
 
-        record_file_.set(
-            rid,
-            column.value(),
-            value.value()
-        );
+        if (transaction_ != nullptr) {
+            // Record the old value before changing the matching row.
+            transaction_->update(
+                plan_.get_table_name(),
+                rid,
+                column.value(),
+                value.value()
+            );
+        } else {
+            record_file->set(
+                rid,
+                column.value(),
+                value.value()
+            );
+        }
 
         ++updated_count;
     }
@@ -135,4 +172,4 @@ std::size_t UpdateExecutor::execute() {
     return updated_count;
 }
 
-}
+} // namespace flashdb

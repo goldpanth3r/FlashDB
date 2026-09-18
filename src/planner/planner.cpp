@@ -9,7 +9,8 @@ std::unique_ptr<Plan> Planner::create_plan(
         InsertStatement,
         CreateTableStatement,
         UpdateStatement,
-        DeleteStatement
+        DeleteStatement,
+        TransactionStatement
     >& statement) {
 
     if (const auto* select =
@@ -124,13 +125,13 @@ std::unique_ptr<Plan> Planner::create_plan(
     if (const auto* delete_statement =
             std::get_if<DeleteStatement>(&statement)) {
 
-        // Keep the optional WHERE predicate attached to DELETE execution.
         std::optional<Condition> condition;
 
         if (delete_statement->has_condition()) {
             condition = delete_statement->condition();
         }
 
+        // Carry the DELETE predicate into the execution layer.
         return std::make_unique<Plan>(
             "Delete",
             delete_statement->table_name(),
@@ -139,7 +140,38 @@ std::unique_ptr<Plan> Planner::create_plan(
         );
     }
 
+    if (const auto* transaction =
+            std::get_if<TransactionStatement>(&statement)) {
+
+        if (transaction->command() ==
+            TransactionCommand::BEGIN) {
+
+            return std::make_unique<Plan>(
+                "BeginTransaction",
+                ""
+            );
+        }
+
+        if (transaction->command() ==
+            TransactionCommand::COMMIT) {
+
+            return std::make_unique<Plan>(
+                "CommitTransaction",
+                ""
+            );
+        }
+
+        if (transaction->command() ==
+            TransactionCommand::ROLLBACK) {
+
+            return std::make_unique<Plan>(
+                "RollbackTransaction",
+                ""
+            );
+        }
+    }
+
     return nullptr;
 }
 
-}
+} // namespace flashdb

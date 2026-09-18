@@ -1,6 +1,6 @@
 #pragma once
 
-#include "metadata/table_catalog.h"
+#include "database.h"
 #include "planner/plan.h"
 
 namespace flashdb {
@@ -9,14 +9,14 @@ class CreateTableExecutor {
 public:
     CreateTableExecutor(
         const Plan& plan,
-        TableCatalog& catalog
+        Database& database
     );
 
     void execute();
 
 private:
     const Plan& plan_;
-    TableCatalog& catalog_;
+    Database& database_;
 };
 
-}
+} // namespace flashdb

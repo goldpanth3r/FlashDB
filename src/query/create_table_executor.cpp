@@ -4,15 +4,15 @@
 
 namespace flashdb {
 
-// Prepare CREATE TABLE execution against the database catalog.
+// Prepare CREATE TABLE execution using the shared database managers.
 CreateTableExecutor::CreateTableExecutor(
     const Plan& plan,
-    TableCatalog& catalog)
+    Database& database)
     : plan_(plan),
-      catalog_(catalog) {
+      database_(database) {
 }
 
-// Register the new table schema with the database metadata.
+// Register the schema and create the table's physical storage.
 void CreateTableExecutor::execute() {
 
     if (plan_.get_name() != "CreateTable") {
@@ -21,7 +21,8 @@ void CreateTableExecutor::execute() {
         );
     }
 
-    const Schema* schema = plan_.get_schema();
+    const Schema* schema =
+        plan_.get_schema();
 
     if (schema == nullptr) {
         throw std::invalid_argument(
@@ -29,16 +30,31 @@ void CreateTableExecutor::execute() {
         );
     }
 
-    if (catalog_.has_table(plan_.get_table_name())) {
+    const std::string& table_name =
+        plan_.get_table_name();
+
+    TableCatalog& catalog =
+        database_.catalog();
+
+    if (catalog.has_table(table_name)) {
         throw std::invalid_argument(
             "CreateTableExecutor: table already exists"
         );
     }
 
-    catalog_.create_table(
-        plan_.get_table_name(),
+    // Register the schema in the shared database catalog.
+    catalog.create_table(
+        table_name,
         *schema
     );
+
+    // Create the initial physical table page.
+    database_.file_manager().append(
+        table_name + ".tbl"
+    );
+
+    // Persist the table definition across database restarts.
+    catalog.save();
 }
 
 }

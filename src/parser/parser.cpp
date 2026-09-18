@@ -141,32 +141,27 @@ SelectStatement Parser::parse_select() {
 
         Expression left = parse_expression();
 
-        if (!match(TokenType::SYMBOL, "=")) {
-            throw std::invalid_argument(
-                "Parser::parse_select: expected '='"
-            );
-        }
-
-        const std::string operator_value =
-            consume().value();
+        expect(TokenType::SYMBOL, "=");
 
         Expression right = parse_expression();
 
+        Condition condition(
+            std::move(left),
+            "=",
+            std::move(right)
+        );
+
         expect(TokenType::SYMBOL, ";");
+        expect_end();
 
         return SelectStatement(
             std::move(columns),
             table_name,
-            Condition(
-                std::move(left),
-                operator_value,
-                std::move(right)
-            )
+            std::move(condition)
         );
     }
 
     expect(TokenType::SYMBOL, ";");
-
     expect_end();
 
     return SelectStatement(
@@ -177,7 +172,6 @@ SelectStatement Parser::parse_select() {
 
 InsertStatement Parser::parse_insert() {
     expect(TokenType::KEYWORD, "INSERT");
-
     expect(TokenType::KEYWORD, "INTO");
 
     if (is_end() ||
@@ -190,29 +184,18 @@ InsertStatement Parser::parse_insert() {
     const std::string table_name = consume().value();
 
     expect(TokenType::KEYWORD, "VALUES");
-
     expect(TokenType::SYMBOL, "(");
 
     std::vector<Expression> values;
-
-    if (is_end() ||
-        current().type() == TokenType::SYMBOL &&
-        current().value() == ")") {
-        throw std::invalid_argument(
-            "Parser::parse_insert: expected value"
-        );
-    }
 
     values.push_back(parse_expression());
 
     while (match(TokenType::SYMBOL, ",")) {
         consume();
-
         values.push_back(parse_expression());
     }
 
     expect(TokenType::SYMBOL, ")");
-
     expect(TokenType::SYMBOL, ";");
 
     expect_end();
@@ -225,7 +208,6 @@ InsertStatement Parser::parse_insert() {
 
 CreateTableStatement Parser::parse_create_table() {
     expect(TokenType::KEYWORD, "CREATE");
-
     expect(TokenType::KEYWORD, "TABLE");
 
     if (is_end() ||
@@ -241,7 +223,7 @@ CreateTableStatement Parser::parse_create_table() {
 
     std::vector<ColumnDefinition> columns;
 
-    while (true) {
+    while (!match(TokenType::SYMBOL, ")")) {
         if (is_end() ||
             current().type() != TokenType::IDENTIFIER) {
             throw std::invalid_argument(
@@ -275,13 +257,13 @@ CreateTableStatement Parser::parse_create_table() {
             const int length =
                 std::stoi(consume().value());
 
-            expect(TokenType::SYMBOL, ")");
-
             if (length <= 0) {
                 throw std::invalid_argument(
                     "Parser::parse_create_table: invalid VARCHAR length"
                 );
             }
+
+            expect(TokenType::SYMBOL, ")");
 
             columns.push_back({
                 column_name,
@@ -305,15 +287,15 @@ CreateTableStatement Parser::parse_create_table() {
 
     expect(TokenType::SYMBOL, ")");
 
-    expect(TokenType::SYMBOL, ";");
-
-    expect_end();
-
     if (columns.empty()) {
         throw std::invalid_argument(
             "Parser::parse_create_table: table must have columns"
         );
     }
+
+    expect(TokenType::SYMBOL, ";");
+
+    expect_end();
 
     return CreateTableStatement(
         table_name,
@@ -324,23 +306,9 @@ CreateTableStatement Parser::parse_create_table() {
 UpdateStatement Parser::parse_update() {
     expect(TokenType::KEYWORD, "UPDATE");
 
-    if (is_end() ||
-        current().type() != TokenType::IDENTIFIER) {
-        throw std::invalid_argument(
-            "Parser::parse_update: expected table name"
-        );
-    }
-
     const std::string table_name = consume().value();
 
     expect(TokenType::KEYWORD, "SET");
-
-    if (is_end() ||
-        current().type() != TokenType::IDENTIFIER) {
-        throw std::invalid_argument(
-            "Parser::parse_update: expected column name"
-        );
-    }
 
     const std::string column_name = consume().value();
 
@@ -353,18 +321,17 @@ UpdateStatement Parser::parse_update() {
 
         Expression left = parse_expression();
 
-        expect(TokenType::SYMBOL, "=");
+        const std::string operator_value = consume().value();
 
         Expression right = parse_expression();
 
         Condition condition(
             std::move(left),
-            "=",
+            operator_value,
             std::move(right)
         );
 
         expect(TokenType::SYMBOL, ";");
-
         expect_end();
 
         return UpdateStatement(
@@ -376,7 +343,6 @@ UpdateStatement Parser::parse_update() {
     }
 
     expect(TokenType::SYMBOL, ";");
-
     expect_end();
 
     return UpdateStatement(
@@ -388,7 +354,6 @@ UpdateStatement Parser::parse_update() {
 
 DeleteStatement Parser::parse_delete() {
     expect(TokenType::KEYWORD, "DELETE");
-
     expect(TokenType::KEYWORD, "FROM");
 
     if (is_end() ||
@@ -434,13 +399,53 @@ DeleteStatement Parser::parse_delete() {
     );
 }
 
-// Route each SQL statement to its matching parser.
+TransactionStatement Parser::parse_transaction() {
+    if (match(TokenType::KEYWORD, "BEGIN")) {
+        consume();
+
+        expect(TokenType::SYMBOL, ";");
+        expect_end();
+
+        return TransactionStatement(
+            TransactionCommand::BEGIN
+        );
+    }
+
+    if (match(TokenType::KEYWORD, "COMMIT")) {
+        consume();
+
+        expect(TokenType::SYMBOL, ";");
+        expect_end();
+
+        return TransactionStatement(
+            TransactionCommand::COMMIT
+        );
+    }
+
+    if (match(TokenType::KEYWORD, "ROLLBACK")) {
+        consume();
+
+        expect(TokenType::SYMBOL, ";");
+        expect_end();
+
+        return TransactionStatement(
+            TransactionCommand::ROLLBACK
+        );
+    }
+
+    throw std::invalid_argument(
+        "Parser::parse_transaction: unsupported transaction command"
+    );
+}
+
+// Route SQL statements to their matching parser.
 std::variant<
     SelectStatement,
     InsertStatement,
     CreateTableStatement,
     UpdateStatement,
-    DeleteStatement
+    DeleteStatement,
+    TransactionStatement
 > Parser::parse() {
 
     if (match(TokenType::KEYWORD, "SELECT")) {
@@ -461,6 +466,12 @@ std::variant<
 
     if (match(TokenType::KEYWORD, "DELETE")) {
         return parse_delete();
+    }
+
+    if (match(TokenType::KEYWORD, "BEGIN") ||
+        match(TokenType::KEYWORD, "COMMIT") ||
+        match(TokenType::KEYWORD, "ROLLBACK")) {
+        return parse_transaction();
     }
 
     throw std::invalid_argument(

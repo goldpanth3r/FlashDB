@@ -2,8 +2,9 @@
 
 #include <cstddef>
 
+#include "database.h"
 #include "planner/plan.h"
-#include "record/record_file.h"
+#include "tx/transaction.h"
 
 namespace flashdb {
 
@@ -11,14 +12,21 @@ class UpdateExecutor {
 public:
     UpdateExecutor(
         const Plan& plan,
-        RecordFile& record_file
+        Database& database
+    );
+
+    UpdateExecutor(
+        const Plan& plan,
+        Database& database,
+        Transaction& transaction
     );
 
     std::size_t execute();
 
 private:
     const Plan& plan_;
-    RecordFile& record_file_;
+    Database& database_;
+    Transaction* transaction_;
 };
 
-}
+} // namespace flashdb

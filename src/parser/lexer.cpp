@@ -144,7 +144,10 @@ bool Lexer::is_keyword(const std::string& value) const {
         "VALUES",
         "SET",
         "INT",
-        "VARCHAR"
+        "VARCHAR",
+        "BEGIN",
+        "COMMIT",
+        "ROLLBACK"
     };
 
     return keywords.contains(value);

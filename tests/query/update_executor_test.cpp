@@ -1,78 +1,73 @@
 #include <filesystem>
+#include <stdexcept>
 
 #include <gtest/gtest.h>
 
-#include "buffer/buffer_manager.h"
-#include "file/file_manager.h"
+#include "database.h"
 #include "parser/lexer.h"
 #include "parser/parser.h"
 #include "planner/planner.h"
 #include "query/update_executor.h"
-#include "record/layout.h"
-#include "record/record_file.h"
-#include "record/schema.h"
 
 namespace flashdb {
 
 class UpdateExecutorTest : public ::testing::Test {
 protected:
-    std::filesystem::path test_directory;
+    std::filesystem::path database_directory;
 
     void SetUp() override {
-        test_directory =
+        database_directory =
             std::filesystem::temp_directory_path()
             / "flashdb_update_executor_test";
 
-        std::filesystem::remove_all(test_directory);
-        std::filesystem::create_directories(test_directory);
+        std::filesystem::remove_all(database_directory);
     }
 
     void TearDown() override {
-        std::filesystem::remove_all(test_directory);
+        std::filesystem::remove_all(database_directory);
+    }
+
+    void create_student_table(Database& database) {
+        Schema schema;
+        schema.add_int_field("id");
+        schema.add_string_field("name", 50);
+
+        database.catalog().create_table(
+            "student",
+            schema
+        );
+
+        database.file_manager().append(
+            "student.tbl"
+        );
     }
 };
 
 TEST_F(UpdateExecutorTest, UpdatesMatchingRecord) {
-    FileManager file_manager(
-        test_directory.string()
+    Database database(
+        database_directory.string()
     );
 
-    BufferManager buffer_manager(
-        file_manager,
-        10
-    );
+    create_student_table(database);
 
-    Schema schema;
-    schema.add_int_field("id");
-    schema.add_string_field("name", 50);
+    auto records =
+        database.open_table("student");
 
-    Layout layout(schema);
+    records->insert({
+        {"id", "1"},
+        {"name", "Alice"}
+    });
 
-    RecordFile records(
-        file_manager,
-        buffer_manager,
-        "student",
-        layout
-    );
-
-    const RecordId alice =
-        records.insert({
-            {"id", "1"},
-            {"name", "Alice"}
-        });
-
-    const RecordId bob =
-        records.insert({
-            {"id", "2"},
-            {"name", "Bob"}
-        });
+    records->insert({
+        {"id", "2"},
+        {"name", "Bob"}
+    });
 
     Lexer lexer(
         "UPDATE student SET name = 'Charlie' WHERE id = 1;"
     );
 
     const auto tokens = lexer.tokenize();
-
     Parser parser(tokens);
 
     const auto statement = parser.parse();
@@ -83,209 +78,183 @@ TEST_F(UpdateExecutorTest, UpdatesMatchingRecord) {
         planner.create_plan(statement);
 
     ASSERT_NE(plan, nullptr);
-    EXPECT_EQ(plan->get_name(), "Update");
 
-    // Execute the targeted UPDATE through the query layer.
+    // Update only the record selected by the WHERE condition.
     UpdateExecutor executor(
         *plan,
-        records
+        database
     );
 
-    EXPECT_EQ(
-        executor.execute(),
-        1
-    );
+    const std::size_t updated =
+        executor.execute();
+
+    EXPECT_EQ(updated, 1u);
 
     EXPECT_EQ(
-        records.get(alice, "name"),
+        records->get(
+            records->scan()[0],
+            "name"
+        ),
         "Charlie"
     );
 
     EXPECT_EQ(
-        records.get(bob, "name"),
+        records->get(
+            records->scan()[1],
+            "name"
+        ),
         "Bob"
     );
 }
 
 TEST_F(UpdateExecutorTest, UpdatesAllRecordsWithoutWhere) {
-    FileManager file_manager(
-        test_directory.string()
+    Database database(
+        database_directory.string()
     );
 
-    BufferManager buffer_manager(
-        file_manager,
-        10
-    );
+    create_student_table(database);
 
-    Schema schema;
-    schema.add_int_field("id");
-    schema.add_string_field("name", 50);
+    auto records =
+        database.open_table("student");
 
-    Layout layout(schema);
+    records->insert({
+        {"id", "1"},
+        {"name", "Alice"}
+    });
 
-    RecordFile records(
-        file_manager,
-        buffer_manager,
-        "student",
-        layout
-    );
-
-    const RecordId alice =
-        records.insert({
-            {"id", "1"},
-            {"name", "Alice"}
-        });
-
-    const RecordId bob =
-        records.insert({
-            {"id", "2"},
-            {"name", "Bob"}
-        });
+    records->insert({
+        {"id", "2"},
+        {"name", "Bob"}
+    });
 
     Lexer lexer(
         "UPDATE student SET name = 'Updated';"
     );
 
     const auto tokens = lexer.tokenize();
-
     Parser parser(tokens);
 
     const auto statement = parser.parse();
 
+    Planner planner;
+
     const auto plan =
-        Planner().create_plan(statement);
+        planner.create_plan(statement);
 
     ASSERT_NE(plan, nullptr);
 
-    // Apply the UPDATE to every record when no predicate is supplied.
+    // Update every record when no WHERE condition is present.
     UpdateExecutor executor(
         *plan,
-        records
+        database
     );
 
-    EXPECT_EQ(
-        executor.execute(),
-        2
-    );
+    const std::size_t updated =
+        executor.execute();
+
+    EXPECT_EQ(updated, 2u);
+
+    const auto record_ids =
+        records->scan();
+
+    ASSERT_EQ(record_ids.size(), 2);
 
     EXPECT_EQ(
-        records.get(alice, "name"),
+        records->get(record_ids[0], "name"),
         "Updated"
     );
 
     EXPECT_EQ(
-        records.get(bob, "name"),
+        records->get(record_ids[1], "name"),
         "Updated"
     );
 }
 
 TEST_F(UpdateExecutorTest, UpdatesMultipleMatchingRecords) {
-    FileManager file_manager(
-        test_directory.string()
+    Database database(
+        database_directory.string()
     );
 
-    BufferManager buffer_manager(
-        file_manager,
-        10
-    );
+    create_student_table(database);
 
-    Schema schema;
-    schema.add_int_field("id");
-    schema.add_string_field("name", 50);
+    auto records =
+        database.open_table("student");
 
-    Layout layout(schema);
+    records->insert({
+        {"id", "1"},
+        {"name", "Alice"}
+    });
 
-    RecordFile records(
-        file_manager,
-        buffer_manager,
-        "student",
-        layout
-    );
+    records->insert({
+        {"id", "2"},
+        {"name", "Alice"}
+    });
 
-    const RecordId first =
-        records.insert({
-            {"id", "1"},
-            {"name", "Alice"}
-        });
-
-    const RecordId second =
-        records.insert({
-            {"id", "1"},
-            {"name", "Bob"}
-        });
-
-    const RecordId third =
-        records.insert({
-            {"id", "2"},
-            {"name", "Charlie"}
-        });
+    records->insert({
+        {"id", "3"},
+        {"name", "Bob"}
+    });
 
     Lexer lexer(
-        "UPDATE student SET name = 'Updated' WHERE id = 1;"
+        "UPDATE student SET name = 'Updated' "
+        "WHERE name = 'Alice';"
     );
 
     const auto tokens = lexer.tokenize();
-
     Parser parser(tokens);
 
     const auto statement = parser.parse();
 
+    Planner planner;
+
     const auto plan =
-        Planner().create_plan(statement);
+        planner.create_plan(statement);
 
     ASSERT_NE(plan, nullptr);
 
-    // Verify that UPDATE operates on every matching record.
+    // Update every record matching the WHERE condition.
     UpdateExecutor executor(
         *plan,
-        records
+        database
     );
 
-    EXPECT_EQ(
-        executor.execute(),
-        2
-    );
+    const std::size_t updated =
+        executor.execute();
+
+    EXPECT_EQ(updated, 2u);
+
+    const auto record_ids =
+        records->scan();
+
+    ASSERT_EQ(record_ids.size(), 3);
 
     EXPECT_EQ(
-        records.get(first, "name"),
+        records->get(record_ids[0], "name"),
         "Updated"
     );
 
     EXPECT_EQ(
-        records.get(second, "name"),
+        records->get(record_ids[1], "name"),
         "Updated"
     );
 
     EXPECT_EQ(
-        records.get(third, "name"),
-        "Charlie"
+        records->get(record_ids[2], "name"),
+        "Bob"
     );
 }
 
 TEST_F(UpdateExecutorTest, RejectsWrongValueType) {
-    FileManager file_manager(
-        test_directory.string()
+    Database database(
+        database_directory.string()
     );
 
-    BufferManager buffer_manager(
-        file_manager,
-        10
-    );
+    create_student_table(database);
 
-    Schema schema;
-    schema.add_int_field("id");
-    schema.add_string_field("name", 50);
+    auto records =
+        database.open_table("student");
 
-    Layout layout(schema);
-
-    RecordFile records(
-        file_manager,
-        buffer_manager,
-        "student",
-        layout
-    );
-
-    records.insert({
+    records->insert({
         {"id", "1"},
         {"name", "Alice"}
     });
@@ -295,20 +264,21 @@ TEST_F(UpdateExecutorTest, RejectsWrongValueType) {
     );
 
     const auto tokens = lexer.tokenize();
-
     Parser parser(tokens);
 
     const auto statement = parser.parse();
 
+    Planner planner;
+
     const auto plan =
-        Planner().create_plan(statement);
+        planner.create_plan(statement);
 
     ASSERT_NE(plan, nullptr);
 
-    // Reject values that cannot be represented by the target column.
+    // Reject values that do not match the target column type.
     UpdateExecutor executor(
         *plan,
-        records
+        database
     );
 
     EXPECT_THROW(
@@ -318,52 +288,32 @@ TEST_F(UpdateExecutorTest, RejectsWrongValueType) {
 }
 
 TEST_F(UpdateExecutorTest, RejectsUnknownColumn) {
-    FileManager file_manager(
-        test_directory.string()
+    Database database(
+        database_directory.string()
     );
 
-    BufferManager buffer_manager(
-        file_manager,
-        10
-    );
-
-    Schema schema;
-    schema.add_int_field("id");
-    schema.add_string_field("name", 50);
-
-    Layout layout(schema);
-
-    RecordFile records(
-        file_manager,
-        buffer_manager,
-        "student",
-        layout
-    );
-
-    records.insert({
-        {"id", "1"},
-        {"name", "Alice"}
-    });
+    create_student_table(database);
 
     Lexer lexer(
         "UPDATE student SET unknown = 'value';"
     );
 
     const auto tokens = lexer.tokenize();
-
     Parser parser(tokens);
 
     const auto statement = parser.parse();
 
+    Planner planner;
+
     const auto plan =
-        Planner().create_plan(statement);
+        planner.create_plan(statement);
 
     ASSERT_NE(plan, nullptr);
 
-    // Protect the storage layer from writes to nonexistent columns.
+    // Reject updates that reference a column not in the schema.
     UpdateExecutor executor(
         *plan,
-        records
+        database
     );
 
     EXPECT_THROW(
@@ -373,62 +323,54 @@ TEST_F(UpdateExecutorTest, RejectsUnknownColumn) {
 }
 
 TEST_F(UpdateExecutorTest, UpdatesIntegerColumn) {
-    FileManager file_manager(
-        test_directory.string()
+    Database database(
+        database_directory.string()
     );
 
-    BufferManager buffer_manager(
-        file_manager,
-        10
-    );
+    create_student_table(database);
 
-    Schema schema;
-    schema.add_int_field("id");
-    schema.add_string_field("name", 50);
+    auto records =
+        database.open_table("student");
 
-    Layout layout(schema);
-
-    RecordFile records(
-        file_manager,
-        buffer_manager,
-        "student",
-        layout
-    );
-
-    const RecordId rid =
-        records.insert({
-            {"id", "1"},
-            {"name", "Alice"}
-        });
+    records->insert({
+        {"id", "1"},
+        {"name", "Alice"}
+    });
 
     Lexer lexer(
-        "UPDATE student SET id = 10 WHERE id = 1;"
+        "UPDATE student SET id = 10 WHERE name = 'Alice';"
     );
 
     const auto tokens = lexer.tokenize();
-
     Parser parser(tokens);
 
     const auto statement = parser.parse();
 
+    Planner planner;
+
     const auto plan =
-        Planner().create_plan(statement);
+        planner.create_plan(statement);
 
     ASSERT_NE(plan, nullptr);
 
-    // Verify that numeric SQL values reach integer storage correctly.
+    // Update an integer column using an integer SQL literal.
     UpdateExecutor executor(
         *plan,
-        records
+        database
     );
 
-    EXPECT_EQ(
-        executor.execute(),
-        1
-    );
+    const std::size_t updated =
+        executor.execute();
+
+    EXPECT_EQ(updated, 1u);
+
+    const auto record_ids =
+        records->scan();
+
+    ASSERT_EQ(record_ids.size(), 1);
 
     EXPECT_EQ(
-        records.get(rid, "id"),
+        records->get(record_ids[0], "id"),
         "10"
     );
 }

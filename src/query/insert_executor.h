@@ -1,10 +1,12 @@
 #pragma once
 
 #include <cstddef>
-#include <string>
+#include <memory>
 
+#include "database.h"
 #include "planner/plan.h"
-#include "record/record_file.h"
+#include "record/rid.h"
+#include "tx/transaction.h"
 
 namespace flashdb {
 
@@ -12,14 +14,21 @@ class InsertExecutor {
 public:
     InsertExecutor(
         const Plan& plan,
-        RecordFile& record_file
+        Database& database
+    );
+
+    InsertExecutor(
+        const Plan& plan,
+        Database& database,
+        Transaction& transaction
     );
 
     RecordId execute();
 
 private:
     const Plan& plan_;
-    RecordFile& record_file_;
+    Database& database_;
+    Transaction* transaction_;
 };
 
-}
+} // namespace flashdb

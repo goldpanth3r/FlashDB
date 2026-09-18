@@ -7,14 +7,7 @@
 
 namespace flashdb {
 
-/**
- * RecordFile opens or creates a table file.
- *
- * @param file_manager File manager used to create and inspect pages.
- * @param buffer_manager Buffer manager used to access pages in memory.
- * @param table_name Name of the table.
- * @param layout Layout describing records.
- */
+// Validate the table storage configuration before it is used.
 RecordFile::RecordFile(
     FileManager& file_manager,
     BufferManager& buffer_manager,
@@ -37,7 +30,6 @@ RecordFile::RecordFile(
         );
     }
 
-    // Every record needs one byte for the used flag.
     const std::size_t slot_size =
         1 + layout_.record_size();
 
@@ -48,21 +40,12 @@ RecordFile::RecordFile(
     }
 }
 
-/**
- * table_filename returns the file used to store this table.
- *
- * @return Table filename.
- */
+// Build the physical filename used by this table.
 std::string RecordFile::table_filename() const {
     return table_name_ + ".tbl";
 }
 
-/**
- * block_id creates the BlockId for one table page.
- *
- * @param page_number Page number inside the table.
- * @return BlockId identifying the page.
- */
+// Convert a logical page number into its physical database block.
 BlockId RecordFile::block_id(
     int page_number) const {
 
@@ -78,11 +61,7 @@ BlockId RecordFile::block_id(
     );
 }
 
-/**
- * validate_page_number checks that a page exists in the table.
- *
- * @param page_number Page number to validate.
- */
+// Make sure a requested table page actually exists.
 void RecordFile::validate_page_number(
     int page_number) const {
 
@@ -102,24 +81,12 @@ void RecordFile::validate_page_number(
     }
 }
 
-/**
- * insert adds a record to the table.
- *
- * The table is treated as a heap file.
- *
- * The pages are searched from the beginning until a page
- * with a free slot is found.
- *
- * If all existing pages are full, a new page is appended.
- *
- * @param values Field values for the new record.
- * @return RecordId identifying the inserted record.
- */
+// Insert a new record into the first available table slot.
 RecordId RecordFile::insert(
     const std::unordered_map<std::string, std::string>& values) {
 
-    // Validate the record before creating or modifying any page.
     Page validation_page;
+
     RecordPage validator(
         validation_page,
         layout_
@@ -133,16 +100,11 @@ RecordId RecordFile::insert(
     int page_count =
         file_manager_.length(filename);
 
-    // If the table does not have any pages yet,
-    // create the first page.
     if (page_count == 0) {
-
         file_manager_.append(filename);
-
         page_count = 1;
     }
 
-    // Search existing pages for a free slot.
     for (int page_number = 0;
          page_number < page_count;
          ++page_number) {
@@ -187,9 +149,6 @@ RecordId RecordFile::insert(
         }
     }
 
-    // Every existing page is full.
-    //
-    // Create one more page at the end of the table.
     const BlockId new_block =
         file_manager_.append(filename);
 
@@ -224,20 +183,12 @@ RecordId RecordFile::insert(
         );
 
     } catch (...) {
-
         buffer_manager_.unpin_buffer(*buffer);
-
         throw;
     }
 }
 
-/**
- * get reads one field from a record.
- *
- * @param rid Record identifier.
- * @param field_name Field to read.
- * @return Field value.
- */
+// Read one field from a stored record.
 std::string RecordFile::get(
     const RecordId& rid,
     const std::string& field_name) {
@@ -274,20 +225,12 @@ std::string RecordFile::get(
         return value;
 
     } catch (...) {
-
         buffer_manager_.unpin_buffer(*buffer);
-
         throw;
     }
 }
 
-/**
- * set updates one field in a record.
- *
- * @param rid Record identifier.
- * @param field_name Field to update.
- * @param value New value.
- */
+// Update one field while keeping the physical record in place.
 void RecordFile::set(
     const RecordId& rid,
     const std::string& field_name,
@@ -325,18 +268,12 @@ void RecordFile::set(
         buffer_manager_.unpin_buffer(*buffer);
 
     } catch (...) {
-
         buffer_manager_.unpin_buffer(*buffer);
-
         throw;
     }
 }
 
-/**
- * remove deletes a record from the table.
- *
- * @param rid Record identifier.
- */
+// Mark an existing record slot as unused.
 void RecordFile::remove(
     const RecordId& rid) {
 
@@ -370,17 +307,165 @@ void RecordFile::remove(
         buffer_manager_.unpin_buffer(*buffer);
 
     } catch (...) {
-
         buffer_manager_.unpin_buffer(*buffer);
-
         throw;
     }
 }
 
-int RecordFile::page_count() const {
-    return file_manager_.length(table_filename());
+// Read every field so a complete record can be saved for undo.
+std::unordered_map<std::string, std::string>
+RecordFile::get_record(
+    const RecordId& rid) {
+
+    validate_page_number(
+        rid.page_number()
+    );
+
+    Buffer* buffer =
+        buffer_manager_.get_buffer(
+            block_id(rid.page_number())
+        );
+
+    if (buffer == nullptr) {
+        throw std::runtime_error(
+            "RecordFile::get_record: unable to get buffer"
+        );
+    }
+
+    try {
+        RecordPage record_page(
+            buffer->page(),
+            layout_
+        );
+
+        std::unordered_map<std::string, std::string> values;
+
+        for (const Field& field :
+             layout_.schema().fields()) {
+
+            values[field.name] =
+                record_page.get(
+                    rid.slot_number(),
+                    field.name
+                );
+        }
+
+        buffer_manager_.unpin_buffer(*buffer);
+
+        return values;
+
+    } catch (...) {
+        buffer_manager_.unpin_buffer(*buffer);
+        throw;
+    }
 }
 
+// Restore a deleted record into its original physical slot.
+void RecordFile::restore(
+    const RecordId& rid,
+    const std::unordered_map<std::string, std::string>& values) {
+
+    validate_page_number(
+        rid.page_number()
+    );
+
+    Buffer* buffer =
+        buffer_manager_.get_buffer(
+            block_id(rid.page_number())
+        );
+
+    if (buffer == nullptr) {
+        throw std::runtime_error(
+            "RecordFile::restore: unable to get buffer"
+        );
+    }
+
+    try {
+        RecordPage record_page(
+            buffer->page(),
+            layout_
+        );
+
+        if (record_page.is_used(
+                rid.slot_number())) {
+
+            throw std::runtime_error(
+                "RecordFile::restore: slot is already occupied"
+            );
+        }
+
+        record_page.validate_record(values);
+
+        const std::size_t offset =
+            rid.slot_number() *
+            (1 + layout_.record_size());
+
+        buffer->page().data()[offset] =
+            std::byte{1};
+
+        for (const Field& field :
+             layout_.schema().fields()) {
+
+            record_page.set(
+                rid.slot_number(),
+                field.name,
+                values.at(field.name)
+            );
+        }
+
+        buffer->mark_dirty();
+
+        buffer_manager_.unpin_buffer(*buffer);
+
+    } catch (...) {
+        buffer_manager_.unpin_buffer(*buffer);
+        throw;
+    }
+}
+
+// Associate the changed page with the WAL record that describes it.
+void RecordFile::set_log_sequence_number(
+    const RecordId& rid,
+    std::size_t lsn) {
+
+    validate_page_number(
+        rid.page_number()
+    );
+
+    Buffer* buffer =
+        buffer_manager_.get_buffer(
+            block_id(rid.page_number())
+        );
+
+    if (buffer == nullptr) {
+        throw std::runtime_error(
+            "RecordFile::set_log_sequence_number: "
+            "unable to get buffer"
+        );
+    }
+
+    try {
+        buffer_manager_.set_log_sequence_number(
+            *buffer,
+            lsn
+        );
+
+        buffer_manager_.unpin_buffer(*buffer);
+
+    } catch (...) {
+        buffer_manager_.unpin_buffer(*buffer);
+        throw;
+    }
+}
+
+// Return the number of physical pages belonging to the table.
+int RecordFile::page_count() const {
+    return file_manager_.length(
+        table_filename()
+    );
+}
+
+// Collect the identifiers of all currently occupied slots.
 std::vector<RecordId> RecordFile::scan() {
     std::vector<RecordId> records;
 
@@ -433,6 +518,226 @@ std::vector<RecordId> RecordFile::scan() {
 // Expose the physical layout used by the table storage.
 const Layout& RecordFile::layout() const {
     return layout_;
+}
+
+// Identify the table represented by this record file.
+const std::string& RecordFile::table_name() const {
+    return table_name_;
+}
+
+// Find the first physical slot that can accept a new record.
+RecordId RecordFile::find_insert_rid() const {
+    const int pages = page_count();
+
+    for (int page_number = 0; page_number < pages; ++page_number) {
+        Buffer* buffer = buffer_manager_.get_buffer(
+            block_id(page_number)
+        );
+
+        if (buffer == nullptr) {
+            throw std::runtime_error(
+                "No available buffer for record insertion"
+            );
+        }
+
+        RecordPage record_page(
+            buffer->page(),
+            layout_
+        );
+
+        for (std::size_t slot = 0;
+             slot < record_page.slot_count();
+             ++slot) {
+            if (!record_page.is_used(slot)) {
+                buffer_manager_.unpin_buffer(*buffer);
+                return RecordId(page_number, slot);
+            }
+        }
+
+        buffer_manager_.unpin_buffer(*buffer);
+    }
+
+    return RecordId(
+        pages,
+        0
+    );
+}
+
+// Insert a record at a predetermined slot so the transaction can log the RID first.
+// Insert a record at a predetermined slot so the transaction can log the RID first.
+void RecordFile::insert_at(
+    const RecordId& rid,
+    const std::unordered_map<std::string, std::string>& values,
+    std::size_t log_sequence_number
+) {
+    if (rid.page_number() < 0) {
+        throw std::runtime_error("Invalid record page");
+    }
+
+    const int pages = page_count();
+
+    if (rid.page_number() > pages) {
+        throw std::runtime_error("Invalid insertion page");
+    }
+
+    if (rid.page_number() == pages) {
+        file_manager_.append(table_filename());
+    }
+
+    Buffer* buffer = buffer_manager_.get_buffer(
+        block_id(rid.page_number())
+    );
+
+    if (buffer == nullptr) {
+        throw std::runtime_error(
+            "No available buffer for record insertion"
+        );
+    }
+
+    RecordPage record_page(
+        buffer->page(),
+        layout_
+    );
+
+    if (rid.slot_number() >= record_page.slot_count()) {
+        buffer_manager_.unpin_buffer(*buffer);
+        throw std::runtime_error("Invalid record slot");
+    }
+
+    buffer_manager_.set_log_sequence_number(
+        *buffer,
+        log_sequence_number
+    );
+
+    record_page.insert_at(
+        rid.slot_number(),
+        values
+    );
+
+    buffer->mark_dirty();
+
+    buffer_manager_.unpin_buffer(*buffer);
+}
+
+// Update a record while associating the page with its WAL record.
+void RecordFile::set_with_log(
+    const RecordId& rid,
+    const std::string& field_name,
+    const std::string& value,
+    std::size_t log_sequence_number
+) {
+    validate_page_number(rid.page_number());
+
+    Buffer* buffer = buffer_manager_.get_buffer(
+        block_id(rid.page_number())
+    );
+
+    if (buffer == nullptr) {
+        throw std::runtime_error(
+            "No available buffer for record update"
+        );
+    }
+
+    buffer_manager_.set_log_sequence_number(
+        *buffer,
+        log_sequence_number
+    );
+
+    RecordPage record_page(
+        buffer->page(),
+        layout_
+    );
+
+    record_page.set(
+        rid.slot_number(),
+        field_name,
+        value
+    );
+
+    buffer->mark_dirty();
+
+    buffer_manager_.unpin_buffer(*buffer);
+}
+
+// Remove a record while associating the page with its WAL record.
+void RecordFile::remove_with_log(
+    const RecordId& rid,
+    std::size_t log_sequence_number
+) {
+    validate_page_number(rid.page_number());
+
+    Buffer* buffer = buffer_manager_.get_buffer(
+        block_id(rid.page_number())
+    );
+
+    if (buffer == nullptr) {
+        throw std::runtime_error(
+            "No available buffer for record deletion"
+        );
+    }
+
+    buffer_manager_.set_log_sequence_number(
+        *buffer,
+        log_sequence_number
+    );
+
+    RecordPage record_page(
+        buffer->page(),
+        layout_
+    );
+
+    record_page.remove(
+        rid.slot_number()
+    );
+
+    buffer->mark_dirty();
+
+    buffer_manager_.unpin_buffer(*buffer);
+}
+
+// Restore a deleted record into its original physical slot.
+void RecordFile::restore(
+    const RecordId& rid,
+    const std::unordered_map<std::string, std::string>& values,
+    std::size_t log_sequence_number
+) {
+    validate_page_number(rid.page_number());
+
+    Buffer* buffer = buffer_manager_.get_buffer(
+        block_id(rid.page_number())
+    );
+
+    if (buffer == nullptr) {
+        throw std::runtime_error(
+            "No available buffer for record restore"
+        );
+    }
+
+    RecordPage record_page(
+        buffer->page(),
+        layout_
+    );
+
+    if (record_page.is_used(rid.slot_number())) {
+        buffer_manager_.unpin_buffer(*buffer);
+        throw std::runtime_error(
+            "Cannot restore an occupied record slot"
+        );
+    }
+
+    buffer_manager_.set_log_sequence_number(
+        *buffer,
+        log_sequence_number
+    );
+
+    record_page.insert_at(
+        rid.slot_number(),
+        values
+    );
+
+    buffer->mark_dirty();
+
+    buffer_manager_.unpin_buffer(*buffer);
 }
 
 } // namespace flashdb
