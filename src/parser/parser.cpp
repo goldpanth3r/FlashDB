@@ -434,14 +434,15 @@ DeleteStatement Parser::parse_delete() {
     );
 }
 
+// Route each SQL statement to its matching parser.
 std::variant<
     SelectStatement,
     InsertStatement,
     CreateTableStatement,
     UpdateStatement,
     DeleteStatement
->
-Parser::parse() {
+> Parser::parse() {
+
     if (match(TokenType::KEYWORD, "SELECT")) {
         return parse_select();
     }
@@ -466,4 +467,5 @@ Parser::parse() {
         "Parser::parse: unsupported statement"
     );
 }
+
 } // namespace flashdb

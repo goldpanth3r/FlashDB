@@ -85,6 +85,8 @@ public:
      */
     std::vector<RecordId> scan();
 
+    const Layout& layout() const;
+
 private:
     FileManager& file_manager_;
     BufferManager& buffer_manager_;

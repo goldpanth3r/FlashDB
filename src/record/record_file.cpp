@@ -430,4 +430,9 @@ std::vector<RecordId> RecordFile::scan() {
     return records;
 }
 
+// Expose the physical layout used by the table storage.
+const Layout& RecordFile::layout() const {
+    return layout_;
+}
+
 } // namespace flashdb

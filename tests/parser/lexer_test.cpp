@@ -39,15 +39,34 @@ TEST(LexerTest, TokenizesInsert) {
 
     ASSERT_EQ(tokens.size(), 10);
 
+    EXPECT_EQ(tokens[0].type(), TokenType::KEYWORD);
     EXPECT_EQ(tokens[0].value(), "INSERT");
+
+    EXPECT_EQ(tokens[1].type(), TokenType::KEYWORD);
     EXPECT_EQ(tokens[1].value(), "INTO");
+
+    EXPECT_EQ(tokens[2].type(), TokenType::IDENTIFIER);
     EXPECT_EQ(tokens[2].value(), "student");
+
+    EXPECT_EQ(tokens[3].type(), TokenType::KEYWORD);
     EXPECT_EQ(tokens[3].value(), "VALUES");
+
+    EXPECT_EQ(tokens[4].type(), TokenType::SYMBOL);
     EXPECT_EQ(tokens[4].value(), "(");
+
+    EXPECT_EQ(tokens[5].type(), TokenType::INTEGER);
     EXPECT_EQ(tokens[5].value(), "1");
+
+    EXPECT_EQ(tokens[6].type(), TokenType::SYMBOL);
     EXPECT_EQ(tokens[6].value(), ",");
+
+    EXPECT_EQ(tokens[7].type(), TokenType::STRING);
     EXPECT_EQ(tokens[7].value(), "Alice");
+
+    EXPECT_EQ(tokens[8].type(), TokenType::SYMBOL);
     EXPECT_EQ(tokens[8].value(), ")");
+
+    EXPECT_EQ(tokens[9].type(), TokenType::SYMBOL);
     EXPECT_EQ(tokens[9].value(), ";");
 }
 

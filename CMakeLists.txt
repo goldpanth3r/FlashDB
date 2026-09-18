@@ -40,6 +40,15 @@ add_executable(flashdb
     src/parser/ast/create_table_statement.cpp
     src/parser/ast/update_statement.cpp
     src/parser/ast/delete_statement.cpp
+    src/planner/plan.cpp
+    src/planner/planner.cpp
+    src/planner/filter_plan.cpp
+    src/query/table_scan_executor.cpp
+    src/query/filter_executor.cpp
+    src/query/project_executor.cpp
+    src/query/query_executor.cpp
+    src/query/insert_executor.cpp
+    src/query/update_executor.cpp
 )
 
 target_include_directories(flashdb PRIVATE src)
@@ -67,7 +76,16 @@ add_executable(flashdb_tests
     tests/parser/create_table_statement_test.cpp
     tests/parser/update_statement_test.cpp
     tests/parser/delete_statement_test.cpp
-
+    tests/planner/plan_test.cpp
+    tests/planner/planner_test.cpp
+    tests/planner/filter_plan_test.cpp
+    tests/query/table_scan_executor_test.cpp
+    tests/query/filter_executor_test.cpp
+    tests/query/project_executor_test.cpp
+    tests/query/query_executor_test.cpp
+    tests/query/insert_executor_test.cpp
+    tests/query/update_executor_test.cpp
+    
     src/file/block_id.cpp
     src/file/page.cpp
     src/file/file_manager.cpp
@@ -91,6 +109,15 @@ add_executable(flashdb_tests
     src/parser/ast/create_table_statement.cpp
     src/parser/ast/update_statement.cpp
     src/parser/ast/delete_statement.cpp
+    src/planner/plan.cpp
+    src/planner/planner.cpp
+    src/planner/filter_plan.cpp
+    src/query/table_scan_executor.cpp
+    src/query/filter_executor.cpp
+    src/query/project_executor.cpp
+    src/query/query_executor.cpp
+    src/query/insert_executor.cpp
+    src/query/update_executor.cpp
 )
 
 target_include_directories(flashdb_tests PRIVATE src)
