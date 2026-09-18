@@ -9,13 +9,15 @@ Plan::Plan(
     std::unique_ptr<Plan> child,
     std::optional<Condition> condition,
     std::vector<Expression> columns,
-    std::vector<Expression> values)
+    std::vector<Expression> values,
+    std::optional<Schema> schema)
     : name_(name),
       table_name_(table_name),
       child_(std::move(child)),
       condition_(std::move(condition)),
       columns_(std::move(columns)),
-      values_(std::move(values)) {
+      values_(std::move(values)),
+      schema_(std::move(schema)) {
 }
 
 // Provide the operation type used by the execution layer.
@@ -42,7 +44,7 @@ const Condition* Plan::get_condition() const {
     return &condition_.value();
 }
 
-// Provide the columns required by a projection.
+// Provide the columns required by a projection or update.
 const std::vector<Expression>& Plan::get_columns() const {
     return columns_;
 }
@@ -50,6 +52,15 @@ const std::vector<Expression>& Plan::get_columns() const {
 // Provide the values carried by an INSERT operation.
 const std::vector<Expression>& Plan::get_values() const {
     return values_;
+}
+
+// Provide the table definition carried by CREATE TABLE.
+const Schema* Plan::get_schema() const {
+    if (!schema_.has_value()) {
+        return nullptr;
+    }
+
+    return &schema_.value();
 }
 
 }

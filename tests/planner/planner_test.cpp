@@ -3,6 +3,7 @@
 #include "parser/lexer.h"
 #include "parser/parser.h"
 #include "planner/planner.h"
+#include "record/schema.h"
 
 namespace flashdb {
 
@@ -221,6 +222,127 @@ TEST(PlannerTest, CreatesUpdatePlanWithoutCondition) {
     EXPECT_EQ(
         plan->get_condition(),
         nullptr
+    );
+}
+
+TEST(PlannerTest, CreatesDeletePlan) {
+    Lexer lexer(
+        "DELETE FROM student WHERE id = 1;"
+    );
+
+    const auto tokens = lexer.tokenize();
+    Parser parser(tokens);
+
+    const auto statement = parser.parse();
+
+    Planner planner;
+
+    const auto plan = planner.create_plan(statement);
+
+    ASSERT_NE(plan, nullptr);
+    EXPECT_EQ(plan->get_name(), "Delete");
+    EXPECT_EQ(plan->get_table_name(), "student");
+
+    ASSERT_NE(plan->get_condition(), nullptr);
+
+    EXPECT_EQ(
+        plan->get_condition()->left().value(),
+        "id"
+    );
+
+    EXPECT_EQ(
+        plan->get_condition()->operator_(),
+        "="
+    );
+
+    EXPECT_EQ(
+        plan->get_condition()->right().value(),
+        "1"
+    );
+}
+
+TEST(PlannerTest, CreatesDeletePlanWithoutCondition) {
+    Lexer lexer(
+        "DELETE FROM student;"
+    );
+
+    const auto tokens = lexer.tokenize();
+    Parser parser(tokens);
+
+    const auto statement = parser.parse();
+
+    Planner planner;
+
+    const auto plan = planner.create_plan(statement);
+
+    ASSERT_NE(plan, nullptr);
+    EXPECT_EQ(plan->get_name(), "Delete");
+    EXPECT_EQ(plan->get_table_name(), "student");
+    EXPECT_EQ(plan->get_condition(), nullptr);
+}
+
+TEST(PlannerTest, CreatesCreateTablePlan) {
+    Lexer lexer(
+        "CREATE TABLE student ("
+        "id INT, "
+        "name VARCHAR(50)"
+        ");"
+    );
+
+    const auto tokens = lexer.tokenize();
+    Parser parser(tokens);
+
+    const auto statement = parser.parse();
+
+    Planner planner;
+
+    const auto plan = planner.create_plan(statement);
+
+    ASSERT_NE(plan, nullptr);
+
+    EXPECT_EQ(
+        plan->get_name(),
+        "CreateTable"
+    );
+
+    EXPECT_EQ(
+        plan->get_table_name(),
+        "student"
+    );
+
+    ASSERT_NE(
+        plan->get_schema(),
+        nullptr
+    );
+
+    EXPECT_EQ(
+        plan->get_schema()->field_count(),
+        2u
+    );
+
+    EXPECT_EQ(
+        plan->get_schema()->fields()[0].name,
+        "id"
+    );
+
+    EXPECT_EQ(
+        plan->get_schema()->fields()[0].type,
+        FieldType::INT
+    );
+
+    EXPECT_EQ(
+        plan->get_schema()->fields()[1].name,
+        "name"
+    );
+
+    EXPECT_EQ(
+        plan->get_schema()->fields()[1].type,
+        FieldType::STRING
+    );
+
+    EXPECT_EQ(
+        plan->get_schema()->fields()[1].length,
+        50u
     );
 }
 

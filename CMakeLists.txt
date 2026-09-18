@@ -49,6 +49,8 @@ add_executable(flashdb
     src/query/query_executor.cpp
     src/query/insert_executor.cpp
     src/query/update_executor.cpp
+    src/query/delete_executor.cpp
+    src/query/create_table_executor.cpp
 )
 
 target_include_directories(flashdb PRIVATE src)
@@ -85,7 +87,9 @@ add_executable(flashdb_tests
     tests/query/query_executor_test.cpp
     tests/query/insert_executor_test.cpp
     tests/query/update_executor_test.cpp
-    
+    tests/query/delete_executor_test.cpp
+    tests/query/create_table_executor_test.cpp
+
     src/file/block_id.cpp
     src/file/page.cpp
     src/file/file_manager.cpp
@@ -118,6 +122,8 @@ add_executable(flashdb_tests
     src/query/query_executor.cpp
     src/query/insert_executor.cpp
     src/query/update_executor.cpp
+    src/query/delete_executor.cpp
+    src/query/create_table_executor.cpp
 )
 
 target_include_directories(flashdb_tests PRIVATE src)

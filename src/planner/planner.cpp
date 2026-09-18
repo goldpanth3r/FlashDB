@@ -55,6 +55,40 @@ std::unique_ptr<Plan> Planner::create_plan(
         );
     }
 
+    if (const auto* create_table =
+            std::get_if<CreateTableStatement>(&statement)) {
+
+        Schema schema;
+
+        // Convert SQL column definitions into the storage schema.
+        for (const ColumnDefinition& column :
+             create_table->columns()) {
+
+            if (column.type == "INT") {
+                schema.add_int_field(column.name);
+                continue;
+            }
+
+            if (column.type == "VARCHAR") {
+                schema.add_string_field(
+                    column.name,
+                    static_cast<std::size_t>(column.length)
+                );
+                continue;
+            }
+        }
+
+        return std::make_unique<Plan>(
+            "CreateTable",
+            create_table->table_name(),
+            nullptr,
+            std::nullopt,
+            std::vector<Expression>{},
+            std::vector<Expression>{},
+            std::move(schema)
+        );
+    }
+
     if (const auto* update =
             std::get_if<UpdateStatement>(&statement)) {
 
@@ -84,6 +118,24 @@ std::unique_ptr<Plan> Planner::create_plan(
             std::move(condition),
             std::move(columns),
             std::move(values)
+        );
+    }
+
+    if (const auto* delete_statement =
+            std::get_if<DeleteStatement>(&statement)) {
+
+        // Keep the optional WHERE predicate attached to DELETE execution.
+        std::optional<Condition> condition;
+
+        if (delete_statement->has_condition()) {
+            condition = delete_statement->condition();
+        }
+
+        return std::make_unique<Plan>(
+            "Delete",
+            delete_statement->table_name(),
+            nullptr,
+            std::move(condition)
         );
     }
 

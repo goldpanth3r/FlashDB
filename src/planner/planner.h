@@ -1,28 +1,44 @@
 #pragma once
 
 #include <memory>
-#include <variant>
+#include <optional>
+#include <string>
+#include <vector>
 
-#include "parser/parser.h"
-#include "planner/plan.h"
+#include "parser/ast/condition.h"
+#include "parser/ast/expression.h"
+#include "record/schema.h"
 
 namespace flashdb {
 
-class Planner {
+class Plan {
 public:
-    // create_plan converts a parsed SQL statement into a query plan.
-    // Arguments:
-    // statement - parsed SQL statement stored in a variant.
-    // Returns:
-    // A query plan.
-    std::unique_ptr<Plan> create_plan(
-        const std::variant<
-            SelectStatement,
-            InsertStatement,
-            CreateTableStatement,
-            UpdateStatement,
-            DeleteStatement
-        >& statement);
+    Plan(
+        const std::string& name,
+        const std::string& table_name,
+        std::unique_ptr<Plan> child = nullptr,
+        std::optional<Condition> condition = std::nullopt,
+        std::vector<Expression> columns = {},
+        std::vector<Expression> values = {},
+        std::optional<Schema> schema = std::nullopt
+    );
+
+    const std::string& get_name() const;
+    const std::string& get_table_name() const;
+    const Plan* get_child() const;
+    const Condition* get_condition() const;
+    const std::vector<Expression>& get_columns() const;
+    const std::vector<Expression>& get_values() const;
+    const Schema* get_schema() const;
+
+private:
+    std::string name_;
+    std::string table_name_;
+    std::unique_ptr<Plan> child_;
+    std::optional<Condition> condition_;
+    std::vector<Expression> columns_;
+    std::vector<Expression> values_;
+    std::optional<Schema> schema_;
 };
 
-} // namespace flashdb
+}

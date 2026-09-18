@@ -7,6 +7,7 @@
 
 #include "parser/ast/condition.h"
 #include "parser/ast/expression.h"
+#include "record/schema.h"
 
 namespace flashdb {
 
@@ -18,7 +19,8 @@ public:
         std::unique_ptr<Plan> child = nullptr,
         std::optional<Condition> condition = std::nullopt,
         std::vector<Expression> columns = {},
-        std::vector<Expression> values = {}
+        std::vector<Expression> values = {},
+        std::optional<Schema> schema = std::nullopt
     );
 
     const std::string& get_name() const;
@@ -27,6 +29,7 @@ public:
     const Condition* get_condition() const;
     const std::vector<Expression>& get_columns() const;
     const std::vector<Expression>& get_values() const;
+    const Schema* get_schema() const;
 
 private:
     std::string name_;
@@ -35,6 +38,7 @@ private:
     std::optional<Condition> condition_;
     std::vector<Expression> columns_;
     std::vector<Expression> values_;
+    std::optional<Schema> schema_;
 };
 
 }
