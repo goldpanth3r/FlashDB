@@ -142,6 +142,7 @@ bool Lexer::is_keyword(const std::string& value) const {
         "DELETE",
         "INTO",
         "VALUES",
+        "SET",
         "INT",
         "VARCHAR"
     };

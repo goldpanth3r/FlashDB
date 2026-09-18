@@ -32,6 +32,14 @@ add_executable(flashdb
     src/metadata/table_catalog.cpp
     src/parser/token.cpp
     src/parser/lexer.cpp
+    src/parser/ast/expression.cpp
+    src/parser/ast/select_statement.cpp
+    src/parser/ast/condition.cpp
+    src/parser/parser.cpp
+    src/parser/ast/insert_statement.cpp
+    src/parser/ast/create_table_statement.cpp
+    src/parser/ast/update_statement.cpp
+    src/parser/ast/delete_statement.cpp
 )
 
 target_include_directories(flashdb PRIVATE src)
@@ -51,6 +59,14 @@ add_executable(flashdb_tests
     tests/metadata/table_catalog_test.cpp
     tests/parser/token_test.cpp
     tests/parser/lexer_test.cpp
+    tests/parser/expression_test.cpp
+    tests/parser/select_statement_test.cpp
+    tests/parser/condition_test.cpp
+    tests/parser/parser_test.cpp
+    tests/parser/insert_statement_test.cpp
+    tests/parser/create_table_statement_test.cpp
+    tests/parser/update_statement_test.cpp
+    tests/parser/delete_statement_test.cpp
 
     src/file/block_id.cpp
     src/file/page.cpp
@@ -67,6 +83,14 @@ add_executable(flashdb_tests
     src/metadata/table_catalog.cpp
     src/parser/token.cpp
     src/parser/lexer.cpp
+    src/parser/ast/expression.cpp
+    src/parser/ast/select_statement.cpp
+    src/parser/ast/condition.cpp
+    src/parser/parser.cpp
+    src/parser/ast/insert_statement.cpp
+    src/parser/ast/create_table_statement.cpp
+    src/parser/ast/update_statement.cpp
+    src/parser/ast/delete_statement.cpp
 )
 
 target_include_directories(flashdb_tests PRIVATE src)
