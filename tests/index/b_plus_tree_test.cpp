@@ -445,4 +445,104 @@ TEST(BPlusTreeTest, ShrinksRootAfterDeletingEverything) {
     EXPECT_TRUE(tree.range_scan(0, 100).empty());
 }
 
+TEST(BPlusTreeTest, SupportsDuplicateKeys) {
+    BPlusTree tree;
+
+    const RecordId first(0, 1);
+    const RecordId second(0, 2);
+    const RecordId third(1, 0);
+
+    tree.insert(10, first);
+    tree.insert(10, second);
+    tree.insert(10, third);
+
+    EXPECT_EQ(tree.size(), 3u);
+
+    const std::vector<RecordId> results =
+        tree.range_scan(10, 10);
+
+    EXPECT_EQ(results.size(), 3u);
+    EXPECT_EQ(results[0], first);
+    EXPECT_EQ(results[1], second);
+    EXPECT_EQ(results[2], third);
+}
+
+TEST(BPlusTreeTest, RemovesSpecificDuplicateKey) {
+    BPlusTree tree;
+
+    const RecordId first(0, 1);
+    const RecordId second(0, 2);
+    const RecordId third(1, 0);
+
+    tree.insert(10, first);
+    tree.insert(10, second);
+    tree.insert(10, third);
+
+    EXPECT_TRUE(
+        tree.remove(10, second)
+    );
+
+    EXPECT_EQ(tree.size(), 2u);
+
+    const std::vector<RecordId> results =
+        tree.range_scan(10, 10);
+
+    EXPECT_EQ(results.size(), 2u);
+    EXPECT_EQ(results[0], first);
+    EXPECT_EQ(results[1], third);
+}
+
+TEST(BPlusTreeTest, RemovingMissingRecordDoesNothing) {
+    BPlusTree tree;
+
+    const RecordId existing(0, 1);
+    const RecordId missing(0, 99);
+
+    tree.insert(10, existing);
+
+    EXPECT_FALSE(
+        tree.remove(10, missing)
+    );
+
+    EXPECT_EQ(tree.size(), 1u);
+
+    RecordId result(0, 0);
+
+    EXPECT_TRUE(
+        tree.search(10, result)
+    );
+
+    EXPECT_EQ(result, existing);
+}
+
+TEST(BPlusTreeTest, RemovesDuplicateKeysAcrossLeaves) {
+    BPlusTree tree;
+
+    const RecordId first(0, 1);
+    const RecordId second(0, 2);
+    const RecordId third(0, 3);
+    const RecordId fourth(0, 4);
+    const RecordId fifth(0, 5);
+
+    tree.insert(10, first);
+    tree.insert(10, second);
+    tree.insert(10, third);
+    tree.insert(10, fourth);
+    tree.insert(10, fifth);
+
+    EXPECT_EQ(tree.size(), 5u);
+
+    EXPECT_TRUE(tree.remove(10, third));
+    EXPECT_TRUE(tree.remove(10, fifth));
+
+    const std::vector<RecordId> results =
+        tree.range_scan(10, 10);
+
+    EXPECT_EQ(results.size(), 3u);
+
+    EXPECT_EQ(results[0], first);
+    EXPECT_EQ(results[1], second);
+    EXPECT_EQ(results[2], fourth);
+}
+
 } // namespace flashdb

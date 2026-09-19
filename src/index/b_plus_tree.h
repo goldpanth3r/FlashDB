@@ -29,6 +29,11 @@ public:
     // Remove a key from the tree.
     bool remove(int key);
 
+    bool remove(
+        int key,
+        const RecordId& rid
+    );
+
     // Find all records whose keys are within the given range.
     std::vector<RecordId> range_scan(
         int start_key,
@@ -55,6 +60,8 @@ private:
 
     // Find the leaf node that should contain the key.
     std::size_t find_leaf(int key) const;
+
+    std::size_t find_first_leaf(int key) const;
 
     // Insert into a leaf that still has space.
     void insert_into_leaf(

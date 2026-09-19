@@ -42,6 +42,11 @@ public:
     // Remove a key and its RecordId from a leaf node.
     bool remove_leaf_entry(int key);
 
+    bool remove_leaf_entry(
+        int key,
+        const RecordId& rid
+    );
+
     // Change one separator key in an internal node.
     void set_key(
         std::size_t index,

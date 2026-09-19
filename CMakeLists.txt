@@ -56,6 +56,10 @@ add_executable(flashdb
     src/recovery/recovery_manager.cpp
     src/index/b_plus_tree.cpp
     src/index/b_plus_tree_node.cpp
+    src/index/index_manager.cpp
+    src/query/index_scan_executor.cpp
+    src/parser/ast/create_index_statement.cpp
+    src/query/create_index_executor.cpp
 )
 
 target_include_directories(flashdb PRIVATE src)
@@ -100,6 +104,13 @@ add_executable(flashdb_tests
     tests/recovery/recovery_repeat_test.cpp
     tests/index/b_plus_tree_test.cpp
     tests/index/b_plus_tree_node_test.cpp
+    tests/index/index_manager_test.cpp
+    tests/query/index_scan_executor_test.cpp
+    tests/query/indexed_select_test.cpp
+    tests/query/update_index_test.cpp
+    tests/query/delete_index_test.cpp
+    tests/query/create_index_test.cpp
+    tests/query/index_persistence_test.cpp
     
     src/file/block_id.cpp
     src/file/page.cpp
@@ -140,6 +151,10 @@ add_executable(flashdb_tests
     src/recovery/recovery_manager.cpp
     src/index/b_plus_tree.cpp
     src/index/b_plus_tree_node.cpp
+    src/index/index_manager.cpp
+    src/query/index_scan_executor.cpp
+    src/parser/ast/create_index_statement.cpp
+    src/query/create_index_executor.cpp
 )
 
 target_include_directories(flashdb_tests PRIVATE src)

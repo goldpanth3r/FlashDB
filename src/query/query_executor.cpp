@@ -2,12 +2,75 @@
 
 #include <memory>
 #include <stdexcept>
+#include <vector>
 
 #include "query/filter_executor.h"
+#include "query/index_scan_executor.h"
 #include "query/project_executor.h"
 #include "query/table_scan_executor.h"
 
 namespace flashdb {
+
+namespace {
+
+// Check whether an index can answer this WHERE condition.
+bool can_use_index(
+    const Condition& condition,
+    const std::string& table_name,
+    const IndexManager& index_manager,
+    std::string& index_name,
+    int& key) {
+
+    if (condition.operator_() != "=") {
+        return false;
+    }
+
+    const Expression& left =
+        condition.left();
+
+    const Expression& right =
+        condition.right();
+
+    if (left.type() != ExpressionType::IDENTIFIER ||
+        right.type() != ExpressionType::INTEGER) {
+        return false;
+    }
+
+    const std::vector<std::string> index_names =
+        index_manager.indexes_for_table(
+            table_name
+        );
+
+    for (const std::string& name :
+         index_names) {
+
+        const IndexMetadata& metadata =
+            index_manager.metadata(name);
+
+        if (metadata.column_name !=
+            left.value()) {
+
+            continue;
+        }
+
+        try {
+            key = std::stoi(
+                right.value()
+            );
+        }
+        catch (const std::exception&) {
+            return false;
+        }
+
+        index_name = name;
+
+        return true;
+    }
+
+    return false;
+}
+
+} // namespace
 
 // Prepare SELECT execution using the shared database storage.
 QueryExecutor::QueryExecutor(
@@ -17,7 +80,7 @@ QueryExecutor::QueryExecutor(
       database_(database) {
 }
 
-// Execute a SELECT query from the plan down to the storage layer.
+// Execute SELECT using an index when possible, otherwise use a table scan.
 std::vector<std::vector<std::string>>
 QueryExecutor::execute() {
 
@@ -27,7 +90,8 @@ QueryExecutor::execute() {
         );
     }
 
-    const Plan* input_plan = plan_.get_child();
+    const Plan* input_plan =
+        plan_.get_child();
 
     if (input_plan == nullptr) {
         throw std::invalid_argument(
@@ -40,35 +104,90 @@ QueryExecutor::execute() {
             plan_.get_table_name()
         );
 
-    // Use a table scan as the base source of records.
-    TableScanExecutor table_scan(*record_file);
+    std::unique_ptr<IndexScanExecutor>
+        index_scan;
 
-    std::unique_ptr<FilterExecutor> filter;
+    std::unique_ptr<TableScanExecutor>
+        table_scan;
 
-    RecordExecutor* input = &table_scan;
+    std::unique_ptr<FilterExecutor>
+        filter;
 
-    // Add filtering when the query contains a WHERE condition.
-    if (input_plan->get_name() == "Filter") {
-        const Condition* condition =
-            input_plan->get_condition();
+    RecordExecutor* input = nullptr;
 
-        if (condition == nullptr) {
-            throw std::invalid_argument(
-                "QueryExecutor: Filter plan has no condition"
-            );
+    /*
+     * Use an index for an equality condition when
+     * an index exists for the referenced column.
+     */
+    if (input_plan->get_name() == "Filter" &&
+        input_plan->get_condition() != nullptr) {
+
+        const Condition& condition =
+            *input_plan->get_condition();
+
+        std::string index_name;
+        int key = 0;
+
+        if (can_use_index(
+                condition,
+                plan_.get_table_name(),
+                database_.index_manager(),
+                index_name,
+                key)) {
+
+            const std::vector<RecordId> record_ids =
+                database_.index_manager().search_all(
+                    index_name,
+                    key
+                );
+
+            index_scan =
+                std::make_unique<IndexScanExecutor>(
+                    record_ids
+                );
+
+            input = index_scan.get();
         }
+    }
 
-        filter = std::make_unique<FilterExecutor>(
-            table_scan,
-            *record_file,
-            *condition
-        );
+    /*
+     * If no usable index exists, keep the original
+     * table-scan and filter execution path.
+     */
+    if (input == nullptr) {
 
-        input = filter.get();
+        table_scan =
+            std::make_unique<TableScanExecutor>(
+                *record_file
+            );
+
+        input = table_scan.get();
+
+        if (input_plan->get_name() == "Filter") {
+
+            const Condition* condition =
+                input_plan->get_condition();
+
+            if (condition == nullptr) {
+                throw std::invalid_argument(
+                    "QueryExecutor: Filter plan has no condition"
+                );
+            }
+
+            filter =
+                std::make_unique<FilterExecutor>(
+                    *table_scan,
+                    *record_file,
+                    *condition
+                );
+
+            input = filter.get();
+        }
     }
 
     if (input_plan->get_name() != "TableScan" &&
         input_plan->get_name() != "Filter") {
+
         throw std::invalid_argument(
             "QueryExecutor: unsupported input plan"
         );
@@ -87,7 +206,9 @@ QueryExecutor::execute() {
 
     // Consume the executor pipeline and collect the final result rows.
     while (project.has_next()) {
-        results.push_back(project.next());
+        results.push_back(
+            project.next()
+        );
     }
 
     project.close();
@@ -95,4 +216,4 @@ QueryExecutor::execute() {
     return results;
 }
 
-}
+} // namespace flashdb

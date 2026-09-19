@@ -47,7 +47,8 @@ void BPlusTreeNode::insert_leaf_entry(
         );
     }
 
-    auto position = std::lower_bound(
+    // upper_bound places duplicates after existing equal keys.
+    auto position = std::upper_bound(
         keys_.begin(),
         keys_.end(),
         key
@@ -103,6 +104,37 @@ bool BPlusTreeNode::remove_leaf_entry(
     );
 
     return true;
+}
+
+// Remove the exact key and record ID pair from a leaf.
+bool BPlusTreeNode::remove_leaf_entry(
+    int key,
+    const RecordId& rid) {
+
+    if (!is_leaf_) {
+        return false;
+    }
+
+    for (std::size_t i = 0;
+         i < keys_.size();
+         ++i) {
+
+        if (keys_[i] == key &&
+            record_ids_[i] == rid) {
+
+            keys_.erase(
+                keys_.begin() + i
+            );
+
+            record_ids_.erase(
+                record_ids_.begin() + i
+            );
+
+            return true;
+        }
+    }
+
+    return false;
 }
 
 // Change one separator key in an internal node.

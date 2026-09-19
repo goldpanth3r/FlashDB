@@ -5,13 +5,14 @@ namespace flashdb {
 // Build the execution structure required by each supported SQL operation.
 std::unique_ptr<Plan> Planner::create_plan(
     const std::variant<
-        SelectStatement,
-        InsertStatement,
-        CreateTableStatement,
-        UpdateStatement,
-        DeleteStatement,
-        TransactionStatement
-    >& statement) {
+            SelectStatement,
+            InsertStatement,
+            CreateTableStatement,
+            CreateIndexStatement,
+            UpdateStatement,
+            DeleteStatement,
+            TransactionStatement
+        >& statement) {
 
     if (const auto* select =
             std::get_if<SelectStatement>(&statement)) {
@@ -87,6 +88,28 @@ std::unique_ptr<Plan> Planner::create_plan(
             std::vector<Expression>{},
             std::vector<Expression>{},
             std::move(schema)
+        );
+    }
+
+    if (const auto* create_index =
+            std::get_if<CreateIndexStatement>(&statement)) {
+
+        // Carry CREATE INDEX information into the execution layer.
+        return std::make_unique<Plan>(
+            "CreateIndex",
+            create_index->table_name(),
+            nullptr,
+            std::nullopt,
+            std::vector<Expression>{
+                Expression(
+                    ExpressionType::IDENTIFIER,
+                    create_index->index_name()
+                ),
+                Expression(
+                    ExpressionType::IDENTIFIER,
+                    create_index->column_name()
+                )
+            }
         );
     }
 

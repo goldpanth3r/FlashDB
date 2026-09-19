@@ -303,6 +303,56 @@ CreateTableStatement Parser::parse_create_table() {
     );
 }
 
+CreateIndexStatement Parser::parse_create_index() {
+    expect(TokenType::KEYWORD, "CREATE");
+    expect(TokenType::KEYWORD, "INDEX");
+
+    if (is_end() ||
+        current().type() != TokenType::IDENTIFIER) {
+        throw std::invalid_argument(
+            "Parser::parse_create_index: expected index name"
+        );
+    }
+
+    const std::string index_name =
+        consume().value();
+
+    expect(TokenType::KEYWORD, "ON");
+
+    if (is_end() ||
+        current().type() != TokenType::IDENTIFIER) {
+        throw std::invalid_argument(
+            "Parser::parse_create_index: expected table name"
+        );
+    }
+
+    const std::string table_name =
+        consume().value();
+
+    expect(TokenType::SYMBOL, "(");
+
+    if (is_end() ||
+        current().type() != TokenType::IDENTIFIER) {
+        throw std::invalid_argument(
+            "Parser::parse_create_index: expected column name"
+        );
+    }
+
+    const std::string column_name =
+        consume().value();
+
+    expect(TokenType::SYMBOL, ")");
+    expect(TokenType::SYMBOL, ";");
+
+    expect_end();
+
+    return CreateIndexStatement(
+        index_name,
+        table_name,
+        column_name
+    );
+}
+
 UpdateStatement Parser::parse_update() {
     expect(TokenType::KEYWORD, "UPDATE");
 
@@ -443,6 +493,7 @@ std::variant<
     SelectStatement,
     InsertStatement,
     CreateTableStatement,
+    CreateIndexStatement,
     UpdateStatement,
     DeleteStatement,
     TransactionStatement
@@ -457,6 +508,15 @@ std::variant<
     }
 
     if (match(TokenType::KEYWORD, "CREATE")) {
+
+        // CREATE INDEX and CREATE TABLE share the CREATE keyword.
+        if (position_ + 1 < tokens_.size() &&
+            tokens_[position_ + 1].type() == TokenType::KEYWORD &&
+            tokens_[position_ + 1].value() == "INDEX") {
+
+            return parse_create_index();
+        }
+
         return parse_create_table();
     }
 
@@ -471,6 +531,7 @@ std::variant<
     if (match(TokenType::KEYWORD, "BEGIN") ||
         match(TokenType::KEYWORD, "COMMIT") ||
         match(TokenType::KEYWORD, "ROLLBACK")) {
+
         return parse_transaction();
     }
 

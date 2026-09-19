@@ -132,23 +132,25 @@ Token Lexer::read_symbol() {
 
 bool Lexer::is_keyword(const std::string& value) const {
     static const std::unordered_set<std::string> keywords = {
-        "CREATE",
-        "TABLE",
-        "SELECT",
-        "FROM",
-        "WHERE",
-        "INSERT",
-        "UPDATE",
-        "DELETE",
-        "INTO",
-        "VALUES",
-        "SET",
-        "INT",
-        "VARCHAR",
-        "BEGIN",
-        "COMMIT",
-        "ROLLBACK"
-    };
+    "CREATE",
+    "TABLE",
+    "INDEX",
+    "ON",
+    "SELECT",
+    "FROM",
+    "WHERE",
+    "INSERT",
+    "UPDATE",
+    "DELETE",
+    "INTO",
+    "VALUES",
+    "SET",
+    "INT",
+    "VARCHAR",
+    "BEGIN",
+    "COMMIT",
+    "ROLLBACK"
+};
 
     return keywords.contains(value);
 }

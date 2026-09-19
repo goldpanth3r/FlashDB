@@ -7,44 +7,61 @@
 
 namespace flashdb {
 
-// Initialize the shared storage and metadata managers for one database.
+// Initialize storage, metadata, and index managers for the database.
 Database::Database(
     const std::string& database_directory,
     std::size_t buffer_count)
     : file_manager_(database_directory),
-      buffer_manager_(file_manager_, buffer_count),
+      buffer_manager_(
+          file_manager_,
+          buffer_count
+      ),
       catalog_(
           (
               std::filesystem::path(database_directory)
               / "flashdb.catalog"
           ).string()
+      ),
+      index_manager_(
+          database_directory
       ) {
 
-    // Restore table definitions before database operations begin.
+    // Restore table definitions before opening indexes.
     catalog_.load();
+
+    // Restore index definitions from disk.
+    index_manager_.load();
+
+    // Rebuild B+ Tree contents from persistent table records.
+    index_manager_.rebuild_indexes(*this);
 }
 
-// Flush modified database pages before the database shuts down.
+// Flush modified database pages before shutdown.
 Database::~Database() {
     buffer_manager_.flush_all();
 }
 
-// Provide shared disk storage to database components.
+// Provide access to the file manager.
 FileManager& Database::file_manager() {
     return file_manager_;
 }
 
-// Provide the shared buffer pool to database components.
+// Provide access to the buffer manager.
 BufferManager& Database::buffer_manager() {
     return buffer_manager_;
 }
 
-// Provide the database metadata catalog.
+// Provide access to the table catalog.
 TableCatalog& Database::catalog() {
     return catalog_;
 }
 
-// Open a table using the shared storage managers and catalog metadata.
+// Provide access to the index manager.
+IndexManager& Database::index_manager() {
+    return index_manager_;
+}
+
+// Open an existing table using its catalog metadata.
 std::unique_ptr<RecordFile> Database::open_table(
     const std::string& table_name) {
 

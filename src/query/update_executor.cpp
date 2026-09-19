@@ -2,11 +2,109 @@
 
 #include <memory>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 #include "query/filter_executor.h"
 #include "query/table_scan_executor.h"
 
 namespace flashdb {
+
+namespace {
+
+// Remove an updated row from indexes that reference the changed column.
+void remove_old_index_entries(
+    Database& database,
+    const std::string& table_name,
+    const std::string& column_name,
+    const RecordId& rid,
+    RecordFile& record_file) {
+
+    const std::vector<std::string> index_names =
+        database.index_manager().indexes_for_table(
+            table_name
+        );
+
+    for (const std::string& index_name : index_names) {
+
+        const IndexMetadata& metadata =
+            database.index_manager().metadata(
+                index_name
+            );
+
+        if (metadata.column_name != column_name) {
+            continue;
+        }
+
+        const std::string old_value =
+            record_file.get(
+                rid,
+                column_name
+            );
+
+        int old_key;
+
+        try {
+            old_key = std::stoi(old_value);
+        }
+        catch (const std::exception&) {
+            throw std::invalid_argument(
+                "UpdateExecutor: indexed column must contain an integer"
+            );
+        }
+
+        database.index_manager().remove(
+            index_name,
+            old_key,
+            rid
+        );
+    }
+}
+
+// Add an updated row to indexes that reference the changed column.
+void add_new_index_entries(
+    Database& database,
+    const std::string& table_name,
+    const std::string& column_name,
+    const std::string& new_value,
+    const RecordId& rid) {
+
+    const std::vector<std::string> index_names =
+        database.index_manager().indexes_for_table(
+            table_name
+        );
+
+    for (const std::string& index_name : index_names) {
+
+        const IndexMetadata& metadata =
+            database.index_manager().metadata(
+                index_name
+            );
+
+        if (metadata.column_name != column_name) {
+            continue;
+        }
+
+        int new_key;
+
+        try {
+            new_key = std::stoi(new_value);
+        }
+        catch (const std::exception&) {
+            throw std::invalid_argument(
+                "UpdateExecutor: indexed column must contain an integer"
+            );
+        }
+
+        database.index_manager().insert(
+            index_name,
+            new_key,
+            rid
+        );
+    }
+}
+
+} // namespace
 
 // Prepare UPDATE execution using the shared database storage.
 UpdateExecutor::UpdateExecutor(
@@ -27,7 +125,7 @@ UpdateExecutor::UpdateExecutor(
       transaction_(&transaction) {
 }
 
-// Validate the UPDATE and apply it through the selected transaction path.
+// Validate the UPDATE, modify rows, and maintain affected indexes.
 std::size_t UpdateExecutor::execute() {
 
     if (plan_.get_name() != "Update") {
@@ -49,13 +147,17 @@ std::size_t UpdateExecutor::execute() {
 
     if (columns.size() != 1 ||
         values.size() != 1) {
+
         throw std::invalid_argument(
             "UpdateExecutor: invalid update plan"
         );
     }
 
-    const Expression& column = columns[0];
-    const Expression& value = values[0];
+    const Expression& column =
+        columns[0];
+
+    const Expression& value =
+        values[0];
 
     if (column.type() != ExpressionType::IDENTIFIER) {
         throw std::invalid_argument(
@@ -66,11 +168,14 @@ std::size_t UpdateExecutor::execute() {
     const Schema& schema =
         record_file->layout().schema();
 
-    const auto& fields = schema.fields();
+    const auto& fields =
+        schema.fields();
 
-    const Field* target_field = nullptr;
+    const Field* target_field =
+        nullptr;
 
     for (const Field& field : fields) {
+
         if (field.name == column.value()) {
             target_field = &field;
             break;
@@ -83,8 +188,9 @@ std::size_t UpdateExecutor::execute() {
         );
     }
 
-    // Validate the SQL value against the physical column type.
+    // Validate the new value against the column type.
     if (target_field->type == FieldType::INT) {
+
         if (value.type() != ExpressionType::INTEGER) {
             throw std::invalid_argument(
                 "UpdateExecutor: expected integer value"
@@ -93,6 +199,7 @@ std::size_t UpdateExecutor::execute() {
     }
 
     if (target_field->type == FieldType::STRING) {
+
         if (value.type() != ExpressionType::STRING) {
             throw std::invalid_argument(
                 "UpdateExecutor: expected string value"
@@ -100,19 +207,36 @@ std::size_t UpdateExecutor::execute() {
         }
     }
 
-    TableScanExecutor table_scan(*record_file);
+    TableScanExecutor table_scan(
+        *record_file
+    );
 
     table_scan.open();
 
     std::size_t updated_count = 0;
 
+    // Update every row when there is no WHERE condition.
     if (plan_.get_condition() == nullptr) {
 
-        // Update every record when no WHERE predicate is present.
         while (table_scan.has_next()) {
-            const RecordId rid = table_scan.next();
+
+            const RecordId rid =
+                table_scan.next();
+
+            /*
+             * Only remove an index entry when the
+             * updated column is actually indexed.
+             */
+            remove_old_index_entries(
+                database_,
+                plan_.get_table_name(),
+                column.value(),
+                rid,
+                *record_file
+            );
 
             if (transaction_ != nullptr) {
+
                 // Record the old value before changing the row.
                 transaction_->update(
                     plan_.get_table_name(),
@@ -120,13 +244,28 @@ std::size_t UpdateExecutor::execute() {
                     column.value(),
                     value.value()
                 );
+
             } else {
+
+                // Update the row directly.
                 record_file->set(
                     rid,
                     column.value(),
                     value.value()
                 );
             }
+
+            /*
+             * Add the row again using its new
+             * indexed value.
+             */
+            add_new_index_entries(
+                database_,
+                plan_.get_table_name(),
+                column.value(),
+                value.value(),
+                rid
+            );
 
             ++updated_count;
         }
@@ -136,7 +275,7 @@ std::size_t UpdateExecutor::execute() {
         return updated_count;
     }
 
-    // Restrict writes to records matching the WHERE predicate.
+    // Restrict the update to rows matching the WHERE condition.
     FilterExecutor filter(
         table_scan,
         *record_file,
@@ -146,23 +285,50 @@ std::size_t UpdateExecutor::execute() {
     filter.open();
 
     while (filter.has_next()) {
-        const RecordId rid = filter.next();
+
+        const RecordId rid =
+            filter.next();
+
+        /*
+         * Remove the old index entry before
+         * changing the indexed column.
+         */
+        remove_old_index_entries(
+            database_,
+            plan_.get_table_name(),
+            column.value(),
+            rid,
+            *record_file
+        );
 
         if (transaction_ != nullptr) {
-            // Record the old value before changing the matching row.
+
+            // Record the old value before changing the row.
             transaction_->update(
                 plan_.get_table_name(),
                 rid,
                 column.value(),
                 value.value()
             );
+
         } else {
+
+            // Update the row directly.
             record_file->set(
                 rid,
                 column.value(),
                 value.value()
             );
         }
+
+        // Add the new indexed value.
+        add_new_index_entries(
+            database_,
+            plan_.get_table_name(),
+            column.value(),
+            value.value(),
+            rid
+        );
 
         ++updated_count;
     }

@@ -15,6 +15,7 @@
 #include "query/update_executor.h"
 #include "tx/transaction.h"
 #include "recovery/recovery_manager.h"
+#include "query/create_index_executor.h"
 
 int main() {
     try {
@@ -59,7 +60,9 @@ int main() {
 
             try {
                 flashdb::Lexer lexer(sql);
-                flashdb::Parser parser(lexer.tokenize());
+
+                const auto tokens = lexer.tokenize();
+                flashdb::Parser parser(tokens);
 
                 const auto statement = parser.parse();
                 auto plan = planner.create_plan(statement);
@@ -112,6 +115,21 @@ int main() {
                     std::cout << "Table created: "
                               << plan->get_table_name()
                               << '\n';
+                    continue;
+                }
+
+                if (name == "CreateIndex") {
+                    flashdb::CreateIndexExecutor executor(
+                        *plan,
+                        database
+                    );
+
+                    executor.execute();
+
+                    std::cout << "Index created: "
+                            << plan->get_columns()[0].value()
+                            << '\n';
+
                     continue;
                 }
 

@@ -56,6 +56,44 @@ std::size_t BPlusTree::find_leaf(int key) const {
     return current_id;
 }
 
+// Find the first leaf that can contain the given key.
+std::size_t BPlusTree::find_first_leaf(int key) const {
+
+    std::size_t current_id = root_id_;
+
+    while (!nodes_[current_id].node->is_leaf()) {
+
+        const auto& node =
+            *nodes_[current_id].node;
+
+        const auto& keys =
+            node.keys();
+
+        const auto& children =
+            node.children();
+
+        std::size_t child_index = 0;
+
+        // For range scans, equal keys must go to the left.
+        while (child_index < keys.size() &&
+               key > keys[child_index]) {
+
+            ++child_index;
+        }
+
+        if (child_index >= children.size()) {
+            throw std::runtime_error(
+                "BPlusTree: invalid child index"
+            );
+        }
+
+        current_id =
+            children[child_index];
+    }
+
+    return current_id;
+}
+
 // Insert an entry into a leaf node.
 void BPlusTree::insert_into_leaf(
     std::size_t leaf_id,
@@ -303,6 +341,67 @@ bool BPlusTree::remove(int key) {
     return true;
 }
 
+// Remove one specific record from an indexed key.
+bool BPlusTree::remove(
+    int key,
+    const RecordId& rid) {
+
+    // Duplicates may exist in several leaves, so start
+    // from the first leaf containing this key.
+    std::size_t leaf_id =
+        find_first_leaf(key);
+
+    while (true) {
+
+        auto& leaf =
+            *nodes_[leaf_id].node;
+
+        // Stop once keys have moved beyond the target key.
+        if (!leaf.keys().empty() &&
+            leaf.keys().front() > key) {
+
+            return false;
+        }
+
+        if (leaf.remove_leaf_entry(
+                key,
+                rid)) {
+
+            --size_;
+
+            if (leaf.key_count() == 0 &&
+                leaf_id != root_id_) {
+
+                rebalance_leaf(leaf_id);
+            }
+
+            return true;
+        }
+
+        const auto& keys =
+            leaf.keys();
+
+        // If this leaf contains keys greater than the
+        // requested key, the record cannot appear later.
+        if (!keys.empty() &&
+            keys.back() > key) {
+
+            return false;
+        }
+
+        const std::size_t next =
+            leaf.next_leaf();
+
+        if (next ==
+            static_cast<std::size_t>(-1)) {
+
+            return false;
+        }
+
+        leaf_id = next;
+    }
+}
+
 // Return records inside an inclusive key range.
 std::vector<RecordId> BPlusTree::range_scan(
     int start_key,
@@ -314,15 +413,20 @@ std::vector<RecordId> BPlusTree::range_scan(
         return result;
     }
 
+    // Start from the leftmost leaf that can contain start_key.
     std::size_t leaf_id =
-        find_leaf(start_key);
+        find_first_leaf(start_key);
 
     while (true) {
+
         const auto& node =
             *nodes_[leaf_id].node;
 
-        const auto& keys = node.keys();
-        const auto& records = node.record_ids();
+        const auto& keys =
+            node.keys();
+
+        const auto& records =
+            node.record_ids();
 
         for (std::size_t i = 0;
              i < keys.size();
@@ -336,13 +440,17 @@ std::vector<RecordId> BPlusTree::range_scan(
                 return result;
             }
 
-            result.push_back(records[i]);
+            result.push_back(
+                records[i]
+            );
         }
 
         const std::size_t next =
             node.next_leaf();
 
-        if (next == static_cast<std::size_t>(-1)) {
+        if (next ==
+            static_cast<std::size_t>(-1)) {
+
             break;
         }
 

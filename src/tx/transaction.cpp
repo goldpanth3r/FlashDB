@@ -1,11 +1,69 @@
 #include "transaction.h"
 
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 #include "database.h"
 #include "record/record_file.h"
 
 namespace flashdb {
+
+    namespace {
+
+        int index_key(
+            const std::string& value) {
+
+            try {
+                return std::stoi(value);
+            }
+            catch (const std::exception&) {
+                throw std::invalid_argument(
+                    "Transaction: indexed column must contain an integer"
+                );
+            }
+        }
+
+        // Remove the current value and restore the old value in affected indexes.
+        void restore_indexes(
+            Database& database,
+            const std::string& table_name,
+            const std::string& column_name,
+            const RecordId& rid,
+            const std::string& old_value,
+            const std::string& current_value) {
+
+            const std::vector<std::string> index_names =
+                database.index_manager().indexes_for_table(
+                    table_name
+                );
+
+            for (const std::string& index_name : index_names) {
+
+                const IndexMetadata& metadata =
+                    database.index_manager().metadata(
+                        index_name
+                    );
+
+                if (metadata.column_name != column_name) {
+                    continue;
+                }
+
+                database.index_manager().remove(
+                    index_name,
+                    index_key(current_value),
+                    rid
+                );
+
+                database.index_manager().insert(
+                    index_name,
+                    index_key(old_value),
+                    rid
+                );
+            }
+        }
+
+        } // namespace
 
 std::size_t Transaction::next_transaction_id_ = 0;
 
@@ -271,22 +329,77 @@ void Transaction::undo_record(
             );
             break;
 
-        case UndoRecordType::UPDATE:
+        case UndoRecordType::UPDATE: {
+            const std::string current_value =
+                table->get(
+                    rid,
+                    record.field_name
+                );
+
             table->set_with_log(
                 rid,
                 record.field_name,
                 record.old_value,
                 undo.lsn
             );
-            break;
 
-        case UndoRecordType::DELETE:
+            // Restore the index from the new value back to the old value.
+            restore_indexes(
+                *database_,
+                record.table_name,
+                record.field_name,
+                rid,
+                record.old_value,
+                current_value
+            );
+
+            break;
+        }
+
+        case UndoRecordType::DELETE: {
+            // Restore the deleted row.
             table->restore(
                 rid,
                 record.old_record,
                 undo.lsn
             );
+
+            // Restore index entries for the deleted row.
+            const std::vector<std::string> index_names =
+                database_->index_manager().indexes_for_table(
+                    record.table_name
+                );
+
+            for (const std::string& index_name :
+                index_names) {
+
+                const IndexMetadata& metadata =
+                    database_->index_manager().metadata(
+                        index_name
+                    );
+
+                auto value_it =
+                    record.old_record.find(
+                        metadata.column_name
+                    );
+
+                if (value_it ==
+                    record.old_record.end()) {
+                    continue;
+                }
+
+                const int key =
+                    index_key(value_it->second);
+
+                database_->index_manager().insert(
+                    index_name,
+                    key,
+                    rid
+                );
+            }
+
             break;
+        }
 
         default:
             throw std::runtime_error(

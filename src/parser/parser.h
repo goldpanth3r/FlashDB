@@ -6,6 +6,7 @@
 #include <variant>
 #include <vector>
 
+#include "ast/create_index_statement.h"
 #include "ast/create_table_statement.h"
 #include "ast/delete_statement.h"
 #include "ast/insert_statement.h"
@@ -24,6 +25,7 @@ namespace flashdb {
  * SELECT name FROM student;
  * INSERT INTO student VALUES (1, 'Alice');
  * CREATE TABLE student(id INT, name VARCHAR(100));
+ * CREATE INDEX student_id_idx ON student(id);
  * UPDATE student SET name = 'Alice';
  * DELETE FROM student WHERE id = 1;
  * BEGIN;
@@ -40,6 +42,8 @@ public:
 
     CreateTableStatement parse_create_table();
 
+    CreateIndexStatement parse_create_index();
+
     UpdateStatement parse_update();
 
     DeleteStatement parse_delete();
@@ -50,6 +54,7 @@ public:
         SelectStatement,
         InsertStatement,
         CreateTableStatement,
+        CreateIndexStatement,
         UpdateStatement,
         DeleteStatement,
         TransactionStatement
